@@ -1,0 +1,136 @@
+package com.example.zeromangas.ui.detalhes
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import com.example.zeromangas.data.model.Manga
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DetalhesScreen(
+    manga: Manga?,
+    onVoltar: () -> Unit,
+    onAdicionarAoCarrinho: (Manga) -> Unit
+) {
+    if (manga == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Manga não encontrado")
+        }
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onVoltar) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 20.dp)
+        ) {
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("📖", style = MaterialTheme.typography.displayLarge)
+
+                if (manga.emDestaque) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.tertiary)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("🔥 Destaque", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = manga.marca,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = manga.nome,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row {
+                AssistChip(onClick = {}, label = { Text(manga.categoria) })
+                Spacer(modifier = Modifier.width(8.dp))
+                AssistChip(onClick = {}, label = { Text("Vol. ${manga.volume}") })
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "R$ ${"%.2f".format(manga.preco)}",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Descrição",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = manga.descricao.ifBlank { "Sem descrição disponível." },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Button(
+            onClick = { onAdicionarAoCarrinho(manga) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Text("Adicionar ao Carrinho")
+        }
+    }
+}

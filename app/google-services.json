@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "870071017115",
+    "project_id": "zeromangas-2908f",
+    "storage_bucket": "zeromangas-2908f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:870071017115:android:fda660f9449e1c72b3b03e",
+        "android_client_info": {
+          "package_name": "com.example.zeromangas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAO9Cf1sBpLmuBPsw9YzQU8odcYHa4e-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

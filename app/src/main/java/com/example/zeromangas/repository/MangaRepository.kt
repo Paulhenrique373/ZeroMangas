@@ -1,0 +1,114 @@
+package com.example.zeromangas.repository
+
+import com.example.zeromangas.data.model.Manga
+
+class MangaRepository {
+
+    fun listarMangas(): List<Manga> {
+        return listOf(
+            Manga(
+                id = "1",
+                nome = "One Piece Vol. 1",
+                marca = "Panini",
+                categoria = "Shounen",
+                volume = 1,
+                preco = 29.90,
+                descricao = "A jornada de Monkey D. Luffy em busca do maior tesouro dos mares começa aqui.",
+                emDestaque = true
+            ),
+            Manga(
+                id = "2",
+                nome = "Naruto Vol. 1",
+                marca = "Panini",
+                categoria = "Shounen",
+                volume = 1,
+                preco = 27.90,
+                descricao = "Um jovem ninja busca reconhecimento e sonha em se tornar Hokage.",
+                emDestaque = true
+            ),
+            Manga(
+                id = "3",
+                nome = "Bleach Vol. 1",
+                marca = "Panini",
+                categoria = "Shounen",
+                volume = 1,
+                preco = 27.90,
+                descricao = "Ichigo Kurosaki ganha poderes de Shinigami e passa a proteger os vivos dos espíritos malignos."
+            ),
+            Manga(
+                id = "4",
+                nome = "Jujutsu Kaisen Vol. 1",
+                marca = "Panini",
+                categoria = "Shounen",
+                volume = 1,
+                preco = 32.90,
+                descricao = "Yuji Itadori se envolve em um mundo de feiticeiros e maldições ao engolir um dedo amaldiçoado.",
+                emDestaque = true
+            ),
+            Manga(
+                id = "5",
+                nome = "Demon Slayer Vol. 1",
+                marca = "Panini",
+                categoria = "Shounen",
+                volume = 1,
+                preco = 29.90,
+                descricao = "Tanjiro luta para curar sua irmã transformada em demônio e vingar sua família."
+            ),
+            Manga(
+                id = "6",
+                nome = "Tokyo Ghoul Vol. 1",
+                marca = "JBC",
+                categoria = "Seinen",
+                volume = 1,
+                preco = 34.90,
+                descricao = "Kaneki se torna metade ghoul após um encontro fatal e precisa aprender a conviver com sua nova natureza."
+            ),
+            Manga(
+                id = "7",
+                nome = "Berserk Vol. 1",
+                marca = "Panini",
+                categoria = "Seinen",
+                volume = 1,
+                preco = 39.90,
+                descricao = "A saga sombria de Guts, um guerreiro solitário em um mundo brutal e implacável.",
+                emDestaque = true
+            ),
+            Manga(
+                id = "8",
+                nome = "Vinland Saga Vol. 1",
+                marca = "NewPOP",
+                categoria = "Seinen",
+                volume = 1,
+                preco = 44.90,
+                descricao = "Thorfinn busca vingança em meio às invasões vikings na Inglaterra medieval."
+            ),
+            Manga(
+                id = "9",
+                nome = "Horimiya Vol. 1",
+                marca = "JBC",
+                categoria = "Romance",
+                volume = 1,
+                preco = 26.90,
+                descricao = "Duas vidas escolares opostas se cruzam e revelam lados que ninguém esperava conhecer."
+            ),
+            Manga(
+                id = "10",
+                nome = "Kaguya-sama Vol. 1",
+                marca = "Panini",
+                categoria = "Romance",
+                volume = 1,
+                preco = 28.90,
+                descricao = "Uma guerra de orgulho entre dois gênios que estão apaixonados, mas se recusam a admitir.",
+                emDestaque = true
+            )
+        )
+    }
+
+    fun listarCategorias(): List<String> {
+        return listOf("Shounen", "Seinen", "Romance")
+    }
+
+    fun listarMarcas(): List<String> {
+        return listOf("Panini", "JBC", "NewPOP", "Devir", "MPEG", "Pipoca & Nanquim")
+    }
+}
