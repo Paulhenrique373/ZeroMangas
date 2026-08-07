@@ -1,6 +1,7 @@
 package com.example.zeromangas.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -12,11 +13,14 @@ import com.example.zeromangas.ui.detalhes.DetalhesScreen
 import com.example.zeromangas.ui.home.HomeScreen
 import com.example.zeromangas.ui.login.LoginScreen
 import com.example.zeromangas.ui.register.RegisterScreen
+import com.example.zeromangas.ui.theme.cart.CartScreen
+import com.example.zeromangas.viewmodel.CartViewModel
 
 sealed class Tela(val rota: String) {
     object Login : Tela("login")
     object Cadastro : Tela("cadastro")
     object Home : Tela("home")
+    object Carrinho : Tela("carrinho")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -26,6 +30,7 @@ sealed class Tela(val rota: String) {
 fun NavGraph() {
     val navController: NavHostController = rememberNavController()
     val mangaRepository = MangaRepository()
+    val cartViewModel: CartViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -59,8 +64,12 @@ fun NavGraph() {
 
         composable(Tela.Home.rota) {
             HomeScreen(
+                cartViewModel = cartViewModel,
                 onMangaClick = { manga ->
                     navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                },
+                onCarrinhoClick = {
+                    navController.navigate(Tela.Carrinho.rota)
                 }
             )
         }
@@ -75,8 +84,19 @@ fun NavGraph() {
             DetalhesScreen(
                 manga = manga,
                 onVoltar = { navController.popBackStack() },
-                onAdicionarAoCarrinho = {
-                    // por enquanto sem carrinho ainda, vamos implementar depois
+                onAdicionarAoCarrinho = { mangaSelecionado ->
+                    cartViewModel.adicionarItem(mangaSelecionado)
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Tela.Carrinho.rota) {
+            CartScreen(
+                cartViewModel = cartViewModel,
+                onVoltar = { navController.popBackStack() },
+                onFinalizarCompra = {
+                    // ainda sem lógica de pedido, vamos implementar depois
                 }
             )
         }

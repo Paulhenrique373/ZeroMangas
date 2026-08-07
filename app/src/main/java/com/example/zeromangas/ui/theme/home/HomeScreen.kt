@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.zeromangas.data.model.Manga
+import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
 import com.example.zeromangas.viewmodel.TipoOrdenacao
 
@@ -27,23 +29,50 @@ import com.example.zeromangas.viewmodel.TipoOrdenacao
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
-    onMangaClick: (Manga) -> Unit = {}
+    cartViewModel: CartViewModel,
+    onMangaClick: (Manga) -> Unit = {},
+    onCarrinhoClick: () -> Unit = {}
 ) {
     val mangas by homeViewModel.mangasFiltrados.collectAsState()
     val textoBusca by homeViewModel.textoBusca.collectAsState()
     val categoriaSelecionada by homeViewModel.categoriaSelecionada.collectAsState()
     val marcaSelecionada by homeViewModel.marcaSelecionada.collectAsState()
+    val itensCarrinho by cartViewModel.itens.collectAsState()
+    val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
 
     var mostrarFiltros by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
-        Text(
-            text = "ZeroMangás",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 20.dp, top = 20.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 12.dp, top = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "ZeroMangás",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            BadgedBox(
+                badge = {
+                    if (quantidadeNoCarrinho > 0) {
+                        Badge { Text("$quantidadeNoCarrinho") }
+                    }
+                }
+            ) {
+                IconButton(onClick = onCarrinhoClick) {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingCart,
+                        contentDescription = "Carrinho",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
