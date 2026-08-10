@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -13,22 +14,36 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.viewmodel.CartViewModel
+import com.example.zeromangas.viewmodel.CheckoutState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CartScreen(
     cartViewModel: CartViewModel,
+    usuarioId: String,
     onVoltar: () -> Unit,
     onFinalizarCompra: () -> Unit
 ) {
     val itens by cartViewModel.itens.collectAsState()
-    val total = itens.sumOf { it.subtotal }
+    val cep by cartViewModel.cep.collectAsState()
+    val cepErro by cartViewModel.cepErro.collectAsState()
+    val frete by cartViewModel.frete.collectAsState()
+    val checkoutState by cartViewModel.checkoutState.collectAsState()
+
+    val subtotal = itens.sumOf { it.subtotal }
+    val total = subtotal + (frete ?: 0.0)
+
+    var mostrarResumo by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -56,7 +71,7 @@ fun CartScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Seu carrinho está vazio",
+                    text = "Seu carrinho está vazio.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -76,9 +91,26 @@ fun CartScreen(
                         onRemover = { cartViewModel.removerItem(item.manga) }
                     )
                 }
+
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SecaoFrete(
+                        cep = cep,
+                        cepErro = cepErro,
+                        frete = frete,
+                        onCepChange = { cartViewModel.atualizarCep(it) },
+                        onCalcularFrete = { cartViewModel.calcularFrete() }
+                    )
+                }
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                LinhaResumo(rotulo = "Subtotal", valor = subtotal)
+                LinhaResumo(rotulo = "Frete", valor = frete)
+                Spacer(modifier = Modifier.height(4.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -91,15 +123,160 @@ fun CartScreen(
                     )
                 }
 
+                if (checkoutState is CheckoutState.Erro) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = (checkoutState as CheckoutState.Erro).mensagem,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
-                    onClick = onFinalizarCompra,
+                    onClick = { mostrarResumo = true },
+                    enabled = checkoutState !is CheckoutState.Carregando,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Finalizar Compra")
+                    if (checkoutState is CheckoutState.Carregando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Finalizar Compra")
+                    }
                 }
             }
+        }
+    }
+
+    if (mostrarResumo) {
+        AlertDialog(
+            onDismissRequest = { mostrarResumo = false },
+            title = { Text("Resumo da compra") },
+            text = {
+                Column {
+                    LinhaResumo(rotulo = "Itens", valor = null, textoAlternativo = "${itens.sumOf { it.quantidade }}")
+                    LinhaResumo(rotulo = "Subtotal", valor = subtotal)
+                    LinhaResumo(rotulo = "Frete", valor = frete)
+                    if (cep.isNotBlank()) {
+                        LinhaResumo(rotulo = "CEP", valor = null, textoAlternativo = cep)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "R$ ${"%.2f".format(total)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarResumo = false
+                    cartViewModel.finalizarCompra(usuarioId)
+                }) {
+                    Text("Confirmar compra")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarResumo = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (checkoutState is CheckoutState.Sucesso) {
+        val pedidoId = (checkoutState as CheckoutState.Sucesso).pedidoId
+        AlertDialog(
+            onDismissRequest = { },
+            confirmButton = {
+                TextButton(onClick = {
+                    cartViewModel.resetarCheckout()
+                    onFinalizarCompra()
+                }) {
+                    Text("Voltar para o início")
+                }
+            },
+            title = { Text("Compra realizada com sucesso! 🎉") },
+            text = { Text("Pedido nº $pedidoId") }
+        )
+    }
+}
+
+@Composable
+fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(rotulo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = textoAlternativo ?: (if (valor != null) "R$ ${"%.2f".format(valor)}" else "—"),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SecaoFrete(
+    cep: String,
+    cepErro: String?,
+    frete: Double?,
+    onCepChange: (String) -> Unit,
+    onCalcularFrete: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp)
+    ) {
+        Text("Calcular frete", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = cep,
+                onValueChange = onCepChange,
+                placeholder = { Text("00000-000") },
+                singleLine = true,
+                isError = cepErro != null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Button(onClick = onCalcularFrete) {
+                Text("Calcular")
+            }
+        }
+
+        if (cepErro != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(cepErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        } else if (frete != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Frete: R$ ${"%.2f".format(frete)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

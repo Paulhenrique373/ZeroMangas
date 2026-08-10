@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.ui.detalhes.DetalhesScreen
 import com.example.zeromangas.ui.home.HomeScreen
@@ -30,6 +31,7 @@ sealed class Tela(val rota: String) {
 fun NavGraph() {
     val navController: NavHostController = rememberNavController()
     val mangaRepository = MangaRepository()
+    val authRepository = AuthRepository()
     val cartViewModel: CartViewModel = viewModel()
 
     NavHost(
@@ -94,9 +96,12 @@ fun NavGraph() {
         composable(Tela.Carrinho.rota) {
             CartScreen(
                 cartViewModel = cartViewModel,
+                usuarioId = authRepository.currentUser?.uid.orEmpty(),
                 onVoltar = { navController.popBackStack() },
                 onFinalizarCompra = {
-                    // ainda sem lógica de pedido, vamos implementar depois
+                    navController.navigate(Tela.Home.rota) {
+                        popUpTo(Tela.Home.rota) { inclusive = true }
+                    }
                 }
             )
         }

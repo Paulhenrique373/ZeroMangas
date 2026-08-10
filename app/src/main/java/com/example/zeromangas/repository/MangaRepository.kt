@@ -29,7 +29,7 @@ class MangaRepository {
             Manga(
                 id = "3",
                 nome = "Bleach Vol. 1",
-                marca = "Panini",
+                marca = "MPEG",
                 categoria = "Shounen",
                 volume = 1,
                 preco = 27.90,
@@ -38,7 +38,7 @@ class MangaRepository {
             Manga(
                 id = "4",
                 nome = "Jujutsu Kaisen Vol. 1",
-                marca = "Panini",
+                marca = "Devir",
                 categoria = "Shounen",
                 volume = 1,
                 preco = 32.90,
@@ -66,7 +66,7 @@ class MangaRepository {
             Manga(
                 id = "7",
                 nome = "Berserk Vol. 1",
-                marca = "Panini",
+                marca = "Devir",
                 categoria = "Seinen",
                 volume = 1,
                 preco = 39.90,
@@ -94,7 +94,7 @@ class MangaRepository {
             Manga(
                 id = "10",
                 nome = "Kaguya-sama Vol. 1",
-                marca = "Panini",
+                marca = "Pipoca & Nanquim",
                 categoria = "Romance",
                 volume = 1,
                 preco = 28.90,
