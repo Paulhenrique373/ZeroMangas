@@ -20,10 +20,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
@@ -391,10 +393,20 @@ fun MangaCard(manga: Manga, onClick: () -> Unit = {}) {
                 .background(MaterialTheme.colorScheme.background),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "📖",
-                style = MaterialTheme.typography.headlineLarge
-            )
+            if (manga.imagemUrl.isNotBlank()) {
+                AsyncImage(
+                    model = manga.imagemUrl,
+                    contentDescription = manga.nome,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    text = "📖",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
+
             if (manga.emDestaque) {
                 Box(
                     modifier = Modifier

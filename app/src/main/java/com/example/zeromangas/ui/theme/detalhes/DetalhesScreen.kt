@@ -11,7 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.Manga
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,10 +58,14 @@ fun DetalhesScreen(
                     .fillMaxWidth()
                     .height(260.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface),
-                contentAlignment = Alignment.Center
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
-                Text("📖", style = MaterialTheme.typography.displayLarge)
+                AsyncImage(
+                    model = manga.imagemUrl,
+                    contentDescription = manga.nome,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
 
                 if (manga.emDestaque) {
                     Box(
