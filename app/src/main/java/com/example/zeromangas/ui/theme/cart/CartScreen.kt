@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +35,7 @@ fun CartScreen(
     cartViewModel: CartViewModel,
     usuarioId: String,
     onVoltar: () -> Unit,
-    onFinalizarCompra: () -> Unit
+    onCompraFinalizada: (String) -> Unit
 ) {
     val itens by cartViewModel.itens.collectAsState()
     val cep by cartViewModel.cep.collectAsState()
@@ -46,6 +47,15 @@ fun CartScreen(
     val total = subtotal + (frete ?: 0.0)
 
     var mostrarResumo by remember { mutableStateOf(false) }
+
+    LaunchedEffect(checkoutState) {
+        val estado = checkoutState
+        if (estado is CheckoutState.Sucesso) {
+            val pedidoId = estado.pedidoId
+            cartViewModel.resetarCheckout()
+            onCompraFinalizada(pedidoId)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -196,23 +206,6 @@ fun CartScreen(
                     Text("Cancelar")
                 }
             }
-        )
-    }
-
-    if (checkoutState is CheckoutState.Sucesso) {
-        val pedidoId = (checkoutState as CheckoutState.Sucesso).pedidoId
-        AlertDialog(
-            onDismissRequest = { },
-            confirmButton = {
-                TextButton(onClick = {
-                    cartViewModel.resetarCheckout()
-                    onFinalizarCompra()
-                }) {
-                    Text("Voltar para o início")
-                }
-            },
-            title = { Text("Compra realizada com sucesso! 🎉") },
-            text = { Text("Pedido nº $pedidoId") }
         )
     }
 }

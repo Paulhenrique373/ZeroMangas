@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +40,7 @@ fun HomeScreen(
     cartViewModel: CartViewModel,
     onMangaClick: (Manga) -> Unit = {},
     onCarrinhoClick: () -> Unit = {},
+    onPedidosClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val mangas by homeViewModel.mangasFiltrados.collectAsState()
@@ -86,6 +88,14 @@ fun HomeScreen(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
+                }
+
+                IconButton(onClick = onPedidosClick) {
+                    Icon(
+                        imageVector = Icons.Default.Receipt,
+                        contentDescription = "Meus Pedidos",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
 
                 IconButton(onClick = { mostrarConfirmacaoLogout = true }) {

@@ -15,6 +15,8 @@ import com.example.zeromangas.ui.home.HomeScreen
 import com.example.zeromangas.ui.login.LoginScreen
 import com.example.zeromangas.ui.register.RegisterScreen
 import com.example.zeromangas.ui.theme.cart.CartScreen
+import com.example.zeromangas.ui.theme.confirmacao.ConfirmacaoScreen
+import com.example.zeromangas.ui.theme.pedidos.PedidosScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
 
@@ -23,8 +25,12 @@ sealed class Tela(val rota: String) {
     object Cadastro : Tela("cadastro")
     object Home : Tela("home")
     object Carrinho : Tela("carrinho")
+    object Pedidos : Tela("pedidos")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
+    }
+    object Confirmacao : Tela("confirmacao/{pedidoId}") {
+        fun criarRota(pedidoId: String) = "confirmacao/$pedidoId"
     }
 }
 
@@ -77,6 +83,9 @@ fun NavGraph() {
                 onCarrinhoClick = {
                     navController.navigate(Tela.Carrinho.rota)
                 },
+                onPedidosClick = {
+                    navController.navigate(Tela.Pedidos.rota)
+                },
                 onLogoutClick = {
                     authViewModel.logout()
                     cartViewModel.limparCarrinho()
@@ -109,11 +118,39 @@ fun NavGraph() {
                 cartViewModel = cartViewModel,
                 usuarioId = authRepository.currentUser?.uid.orEmpty(),
                 onVoltar = { navController.popBackStack() },
-                onFinalizarCompra = {
+                onCompraFinalizada = { pedidoId ->
+                    navController.navigate(Tela.Confirmacao.criarRota(pedidoId)) {
+                        popUpTo(Tela.Home.rota)
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = Tela.Confirmacao.rota,
+            arguments = listOf(navArgument("pedidoId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val pedidoId = backStackEntry.arguments?.getString("pedidoId") ?: ""
+
+            ConfirmacaoScreen(
+                pedidoId = pedidoId,
+                onVoltarParaHome = {
                     navController.navigate(Tela.Home.rota) {
                         popUpTo(Tela.Home.rota) { inclusive = true }
                     }
+                },
+                onVerPedidos = {
+                    navController.navigate(Tela.Pedidos.rota) {
+                        popUpTo(Tela.Home.rota)
+                    }
                 }
+            )
+        }
+
+        composable(Tela.Pedidos.rota) {
+            PedidosScreen(
+                usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                onVoltar = { navController.popBackStack() }
             )
         }
     }
