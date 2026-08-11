@@ -17,6 +17,7 @@ import com.example.zeromangas.ui.register.RegisterScreen
 import com.example.zeromangas.ui.theme.cart.CartScreen
 import com.example.zeromangas.ui.theme.confirmacao.ConfirmacaoScreen
 import com.example.zeromangas.ui.theme.pedidos.PedidosScreen
+import com.example.zeromangas.ui.perfil.ProfileScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
 
@@ -26,6 +27,7 @@ sealed class Tela(val rota: String) {
     object Home : Tela("home")
     object Carrinho : Tela("carrinho")
     object Pedidos : Tela("pedidos")
+    object Perfil : Tela("perfil")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -85,6 +87,9 @@ fun NavGraph() {
                 },
                 onPedidosClick = {
                     navController.navigate(Tela.Pedidos.rota)
+                },
+                onPerfilClick = {
+                    navController.navigate(Tela.Perfil.rota)
                 },
                 onLogoutClick = {
                     authViewModel.logout()
@@ -150,6 +155,13 @@ fun NavGraph() {
         composable(Tela.Pedidos.rota) {
             PedidosScreen(
                 usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                onVoltar = { navController.popBackStack() }
+            )
+        }
+
+        composable(Tela.Perfil.rota) {
+            ProfileScreen(
+                authViewModel = authViewModel,
                 onVoltar = { navController.popBackStack() }
             )
         }

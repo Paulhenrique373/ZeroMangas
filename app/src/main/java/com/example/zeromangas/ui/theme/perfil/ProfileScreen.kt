@@ -1,0 +1,173 @@
+package com.example.zeromangas.ui.perfil
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.example.zeromangas.viewmodel.AuthViewModel
+import com.example.zeromangas.viewmodel.ProfileState
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileScreen(
+    authViewModel: AuthViewModel,
+    onVoltar: () -> Unit
+) {
+    val usuario by authViewModel.usuarioAtual.collectAsState()
+    val profileState by authViewModel.profileState.collectAsState()
+
+    var nome by remember { mutableStateOf("") }
+    var fotoUrl by remember { mutableStateOf("") }
+    var jaCarregouCampos by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        authViewModel.carregarUsuario()
+    }
+
+    LaunchedEffect(usuario) {
+        if (!jaCarregouCampos && usuario != null) {
+            nome = usuario?.nome.orEmpty()
+            fotoUrl = usuario?.fotoUrl.orEmpty()
+            jaCarregouCampos = true
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onVoltar) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+            }
+            Text(
+                text = "Meu Perfil",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
+            ) {
+                if (fotoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = fotoUrl,
+                        contentDescription = "Foto de perfil",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.AccountCircle,
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.size(100.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = nome,
+                onValueChange = { nome = it },
+                label = { Text("Nome") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = fotoUrl,
+                onValueChange = { fotoUrl = it },
+                label = { Text("Link da foto (opcional)") },
+                placeholder = { Text("https://...") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = usuario?.email.orEmpty(),
+                onValueChange = {},
+                label = { Text("E-mail") },
+                enabled = false,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "O e-mail não pode ser alterado por aqui.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            when (val estado = profileState) {
+                is ProfileState.Erro -> {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = estado.mensagem,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                is ProfileState.Sucesso -> {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Perfil atualizado com sucesso!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                else -> {}
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = { authViewModel.atualizarPerfil(nome, fotoUrl) },
+                enabled = profileState !is ProfileState.Loading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (profileState is ProfileState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Salvar alterações")
+                }
+            }
+        }
+    }
+}
