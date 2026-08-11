@@ -15,6 +15,7 @@ import com.example.zeromangas.ui.home.HomeScreen
 import com.example.zeromangas.ui.login.LoginScreen
 import com.example.zeromangas.ui.register.RegisterScreen
 import com.example.zeromangas.ui.theme.cart.CartScreen
+import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
 
 sealed class Tela(val rota: String) {
@@ -33,6 +34,7 @@ fun NavGraph() {
     val mangaRepository = MangaRepository()
     val authRepository = AuthRepository()
     val cartViewModel: CartViewModel = viewModel()
+    val authViewModel: AuthViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -40,6 +42,7 @@ fun NavGraph() {
     ) {
         composable(Tela.Login.rota) {
             LoginScreen(
+                authViewModel = authViewModel,
                 onLoginSucesso = {
                     navController.navigate(Tela.Home.rota) {
                         popUpTo(Tela.Login.rota) { inclusive = true }
@@ -53,6 +56,7 @@ fun NavGraph() {
 
         composable(Tela.Cadastro.rota) {
             RegisterScreen(
+                authViewModel = authViewModel,
                 onCadastroSucesso = {
                     navController.navigate(Tela.Home.rota) {
                         popUpTo(Tela.Login.rota) { inclusive = true }
@@ -72,6 +76,13 @@ fun NavGraph() {
                 },
                 onCarrinhoClick = {
                     navController.navigate(Tela.Carrinho.rota)
+                },
+                onLogoutClick = {
+                    authViewModel.logout()
+                    cartViewModel.limparCarrinho()
+                    navController.navigate(Tela.Login.rota) {
+                        popUpTo(Tela.Home.rota) { inclusive = true }
+                    }
                 }
             )
         }

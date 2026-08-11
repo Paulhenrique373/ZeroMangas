@@ -20,8 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.CheckoutState
@@ -300,10 +302,14 @@ fun CartItemCard(
             modifier = Modifier
                 .size(56.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.background),
-            contentAlignment = Alignment.Center
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            Text("📖")
+            AsyncImage(
+                model = item.manga.imagemUrl,
+                contentDescription = item.manga.nome,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))

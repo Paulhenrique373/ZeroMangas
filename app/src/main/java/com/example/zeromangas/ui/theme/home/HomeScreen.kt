@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +38,8 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
     cartViewModel: CartViewModel,
     onMangaClick: (Manga) -> Unit = {},
-    onCarrinhoClick: () -> Unit = {}
+    onCarrinhoClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     val mangas by homeViewModel.mangasFiltrados.collectAsState()
     val textoBusca by homeViewModel.textoBusca.collectAsState()
@@ -52,6 +54,7 @@ fun HomeScreen(
 
     var mostrarFiltros by remember { mutableStateOf(false) }
     var mostrarOrdenacao by remember { mutableStateOf(false) }
+    var mostrarConfirmacaoLogout by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -68,17 +71,27 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            BadgedBox(
-                badge = {
-                    if (quantidadeNoCarrinho > 0) {
-                        Badge { Text("$quantidadeNoCarrinho") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BadgedBox(
+                    badge = {
+                        if (quantidadeNoCarrinho > 0) {
+                            Badge { Text("$quantidadeNoCarrinho") }
+                        }
+                    }
+                ) {
+                    IconButton(onClick = onCarrinhoClick) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingCart,
+                            contentDescription = "Carrinho",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
-            ) {
-                IconButton(onClick = onCarrinhoClick) {
+
+                IconButton(onClick = { mostrarConfirmacaoLogout = true }) {
                     Icon(
-                        imageVector = Icons.Default.ShoppingCart,
-                        contentDescription = "Carrinho",
+                        imageVector = Icons.Default.Logout,
+                        contentDescription = "Sair da conta",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -192,6 +205,27 @@ fun HomeScreen(
                 mostrarOrdenacao = false
             },
             onFechar = { mostrarOrdenacao = false }
+        )
+    }
+
+    if (mostrarConfirmacaoLogout) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacaoLogout = false },
+            title = { Text("Sair da conta") },
+            text = { Text("Tem certeza que deseja sair?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarConfirmacaoLogout = false
+                    onLogoutClick()
+                }) {
+                    Text("Sair")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarConfirmacaoLogout = false }) {
+                    Text("Cancelar")
+                }
+            }
         )
     }
 }
