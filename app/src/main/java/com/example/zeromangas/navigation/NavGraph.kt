@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.ui.detalhes.DetalhesScreen
+import com.example.zeromangas.ui.favoritos.FavoritosScreen
 import com.example.zeromangas.ui.home.HomeScreen
 import com.example.zeromangas.ui.login.LoginScreen
 import com.example.zeromangas.ui.register.RegisterScreen
@@ -20,6 +21,7 @@ import com.example.zeromangas.ui.theme.pedidos.PedidosScreen
 import com.example.zeromangas.ui.perfil.ProfileScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
+import com.example.zeromangas.viewmodel.FavoritoViewModel
 
 sealed class Tela(val rota: String) {
     object Login : Tela("login")
@@ -28,6 +30,7 @@ sealed class Tela(val rota: String) {
     object Carrinho : Tela("carrinho")
     object Pedidos : Tela("pedidos")
     object Perfil : Tela("perfil")
+    object Favoritos : Tela("favoritos")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -43,6 +46,7 @@ fun NavGraph() {
     val authRepository = AuthRepository()
     val cartViewModel: CartViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
+    val favoritoViewModel: FavoritoViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -79,6 +83,8 @@ fun NavGraph() {
         composable(Tela.Home.rota) {
             HomeScreen(
                 cartViewModel = cartViewModel,
+                favoritoViewModel = favoritoViewModel,
+                usuarioId = authRepository.currentUser?.uid.orEmpty(),
                 onMangaClick = { manga ->
                     navController.navigate(Tela.Detalhes.criarRota(manga.id))
                 },
@@ -91,9 +97,13 @@ fun NavGraph() {
                 onPerfilClick = {
                     navController.navigate(Tela.Perfil.rota)
                 },
+                onFavoritosClick = {
+                    navController.navigate(Tela.Favoritos.rota)
+                },
                 onLogoutClick = {
                     authViewModel.logout()
                     cartViewModel.limparCarrinho()
+                    favoritoViewModel.limparFavoritos()
                     navController.navigate(Tela.Login.rota) {
                         popUpTo(Tela.Home.rota) { inclusive = true }
                     }
@@ -163,6 +173,17 @@ fun NavGraph() {
             ProfileScreen(
                 authViewModel = authViewModel,
                 onVoltar = { navController.popBackStack() }
+            )
+        }
+
+        composable(Tela.Favoritos.rota) {
+            FavoritosScreen(
+                favoritoViewModel = favoritoViewModel,
+                usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                onVoltar = { navController.popBackStack() },
+                onMangaClick = { manga ->
+                    navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                }
             )
         }
     }

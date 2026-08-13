@@ -8,9 +8,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
@@ -31,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.viewmodel.CartViewModel
+import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
 import com.example.zeromangas.viewmodel.TipoOrdenacao
 
@@ -39,10 +43,13 @@ import com.example.zeromangas.viewmodel.TipoOrdenacao
 fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
     cartViewModel: CartViewModel,
+    favoritoViewModel: FavoritoViewModel,
+    usuarioId: String,
     onMangaClick: (Manga) -> Unit = {},
     onCarrinhoClick: () -> Unit = {},
     onPedidosClick: () -> Unit = {},
     onPerfilClick: () -> Unit = {},
+    onFavoritosClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val mangas by homeViewModel.mangasFiltrados.collectAsState()
@@ -55,10 +62,15 @@ fun HomeScreen(
     val quantidadeFiltrosAtivos by homeViewModel.quantidadeFiltrosAtivos.collectAsState()
     val itensCarrinho by cartViewModel.itens.collectAsState()
     val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
+    val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
 
     var mostrarFiltros by remember { mutableStateOf(false) }
     var mostrarOrdenacao by remember { mutableStateOf(false) }
     var mostrarConfirmacaoLogout by remember { mutableStateOf(false) }
+
+    LaunchedEffect(usuarioId) {
+        favoritoViewModel.carregarFavoritos(usuarioId)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -76,6 +88,14 @@ fun HomeScreen(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onFavoritosClick) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Meus Favoritos",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 BadgedBox(
                     badge = {
                         if (quantidadeNoCarrinho > 0) {
@@ -195,7 +215,12 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(mangas) { manga ->
-                    MangaCard(manga = manga, onClick = { onMangaClick(manga) })
+                    MangaCard(
+                        manga = manga,
+                        onClick = { onMangaClick(manga) },
+                        isFavorito = manga.id in favoritosIds,
+                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+                    )
                 }
             }
         }
@@ -431,7 +456,12 @@ fun FiltroChip(texto: String, selecionado: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun MangaCard(manga: Manga, onClick: () -> Unit = {}) {
+fun MangaCard(
+    manga: Manga,
+    onClick: () -> Unit = {},
+    isFavorito: Boolean = false,
+    onFavoritoClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
@@ -471,6 +501,23 @@ fun MangaCard(manga: Manga, onClick: () -> Unit = {}) {
                 ) {
                     Text("🔥", style = MaterialTheme.typography.labelSmall)
                 }
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                    .clickable { onFavoritoClick() }
+                    .padding(6.dp)
+            ) {
+                Icon(
+                    imageVector = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
 
