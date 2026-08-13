@@ -2,7 +2,12 @@ package com.example.zeromangas.repository
 
 import android.net.Uri
 import com.example.zeromangas.data.model.User
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.tasks.await
@@ -30,7 +35,7 @@ class AuthRepository {
                 Result.failure(Exception("Erro ao criar usuário"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(traduzirErroFirebase(e)))
         }
     }
 
@@ -44,7 +49,7 @@ class AuthRepository {
                 Result.failure(Exception("Erro ao fazer login"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(traduzirErroFirebase(e)))
         }
     }
 
@@ -78,7 +83,33 @@ class AuthRepository {
             usuario.updateProfile(builder.build()).await()
             Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(traduzirErroFirebase(e)))
+        }
+    }
+
+    /**
+     * Converte as exceptions específicas do Firebase Auth (que vêm com mensagens
+     * em inglês do SDK) em mensagens em português, prontas para mostrar na tela.
+     */
+    private fun traduzirErroFirebase(e: Exception): String {
+        return when (e) {
+            is FirebaseAuthWeakPasswordException ->
+                "A senha deve ter pelo menos 6 caracteres."
+
+            is FirebaseAuthInvalidCredentialsException ->
+                "E-mail ou senha inválidos."
+
+            is FirebaseAuthUserCollisionException ->
+                "Este e-mail já está cadastrado. Tente fazer login."
+
+            is FirebaseAuthInvalidUserException ->
+                "Usuário não encontrado ou conta desativada."
+
+            is FirebaseNetworkException ->
+                "Sem conexão com a internet. Verifique sua rede e tente novamente."
+
+            else ->
+                "Ocorreu um erro inesperado. Tente novamente."
         }
     }
 }

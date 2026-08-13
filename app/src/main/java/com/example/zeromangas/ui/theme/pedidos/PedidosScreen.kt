@@ -12,12 +12,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.repository.OrderRepository
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,9 +103,34 @@ fun PedidosScreen(
     }
 }
 
+/**
+ * Calcula o status do pedido com base em quanto tempo passou desde a compra,
+ * já que o app não tem um sistema de logística real por trás.
+ *
+ * < 1 dia: Processando | 1 a 3 dias: Enviado | mais de 3 dias: Entregue
+ */
+private fun calcularStatusPedido(dataPedido: Long): String {
+    val diasDesdeACompra = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - dataPedido)
+    return when {
+        diasDesdeACompra < 1 -> "Processando"
+        diasDesdeACompra in 1..3 -> "Enviado"
+        else -> "Entregue"
+    }
+}
+
+@Composable
+private fun corDoStatus(status: String): Color {
+    return when (status) {
+        "Processando" -> MaterialTheme.colorScheme.tertiary
+        "Enviado" -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.primary
+    }
+}
+
 @Composable
 fun PedidoCard(pedido: Order) {
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
+    val statusAtual = remember(pedido.data) { calcularStatusPedido(pedido.data) }
 
     Column(
         modifier = Modifier
@@ -125,10 +152,10 @@ fun PedidoCard(pedido: Order) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.tertiary)
+                    .background(corDoStatus(statusAtual))
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text(pedido.status, style = MaterialTheme.typography.labelSmall)
+                Text(statusAtual, style = MaterialTheme.typography.labelSmall)
             }
         }
 
