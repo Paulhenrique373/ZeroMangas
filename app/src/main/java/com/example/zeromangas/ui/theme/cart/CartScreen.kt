@@ -41,6 +41,8 @@ fun CartScreen(
     val cep by cartViewModel.cep.collectAsState()
     val cepErro by cartViewModel.cepErro.collectAsState()
     val frete by cartViewModel.frete.collectAsState()
+    val calculandoFrete by cartViewModel.calculandoFrete.collectAsState()
+    val cidadeUf by cartViewModel.cidadeUf.collectAsState()
     val checkoutState by cartViewModel.checkoutState.collectAsState()
 
     val subtotal = itens.sumOf { it.subtotal }
@@ -110,6 +112,8 @@ fun CartScreen(
                         cep = cep,
                         cepErro = cepErro,
                         frete = frete,
+                        calculando = calculandoFrete,
+                        cidadeUf = cidadeUf,
                         onCepChange = { cartViewModel.atualizarCep(it) },
                         onCalcularFrete = { cartViewModel.calcularFrete() }
                     )
@@ -177,6 +181,9 @@ fun CartScreen(
                     if (cep.isNotBlank()) {
                         LinhaResumo(rotulo = "CEP", valor = null, textoAlternativo = cep)
                     }
+                    if (cidadeUf != null) {
+                        LinhaResumo(rotulo = "Destino", valor = null, textoAlternativo = cidadeUf)
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Divider()
                     Spacer(modifier = Modifier.height(8.dp))
@@ -233,6 +240,8 @@ fun SecaoFrete(
     cep: String,
     cepErro: String?,
     frete: Double?,
+    calculando: Boolean,
+    cidadeUf: String?,
     onCepChange: (String) -> Unit,
     onCalcularFrete: () -> Unit
 ) {
@@ -253,12 +262,21 @@ fun SecaoFrete(
                 placeholder = { Text("00000-000") },
                 singleLine = true,
                 isError = cepErro != null,
+                enabled = !calculando,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Button(onClick = onCalcularFrete) {
-                Text("Calcular")
+            Button(onClick = onCalcularFrete, enabled = !calculando) {
+                if (calculando) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Calcular")
+                }
             }
         }
 
@@ -267,6 +285,14 @@ fun SecaoFrete(
             Text(cepErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         } else if (frete != null) {
             Spacer(modifier = Modifier.height(8.dp))
+            if (cidadeUf != null) {
+                Text(
+                    text = "Entrega para: $cidadeUf",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+            }
             Text(
                 text = "Frete: R$ ${"%.2f".format(frete)}",
                 style = MaterialTheme.typography.bodyMedium,
