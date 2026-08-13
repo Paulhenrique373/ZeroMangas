@@ -1,8 +1,11 @@
 package com.example.zeromangas.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.User
+import com.example.zeromangas.data.repository.StorageRepository
 import com.example.zeromangas.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,9 +25,17 @@ sealed class ProfileState {
     data class Erro(val mensagem: String) : ProfileState()
 }
 
+sealed class UploadFotoState {
+    object Idle : UploadFotoState()
+    object Loading : UploadFotoState()
+    data class Sucesso(val url: String) : UploadFotoState()
+    data class Erro(val mensagem: String) : UploadFotoState()
+}
+
 class AuthViewModel : ViewModel() {
 
     private val repository = AuthRepository()
+    private val storageRepository = StorageRepository()
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState
@@ -34,6 +45,9 @@ class AuthViewModel : ViewModel() {
 
     private val _profileState = MutableStateFlow<ProfileState>(ProfileState.Idle)
     val profileState: StateFlow<ProfileState> = _profileState
+
+    private val _uploadFotoState = MutableStateFlow<UploadFotoState>(UploadFotoState.Idle)
+    val uploadFotoState: StateFlow<UploadFotoState> = _uploadFotoState
 
     val usuarioLogado get() = repository.currentUser != null
 
@@ -110,5 +124,31 @@ class AuthViewModel : ViewModel() {
 
     fun resetarProfileState() {
         _profileState.value = ProfileState.Idle
+    }
+
+    /**
+     * Envia a foto escolhida na galeria para o Supabase Storage.
+     * Ao terminar, o resultado fica disponível em [uploadFotoState] com a URL pública,
+     * que a tela deve usar para preencher o campo de foto antes de salvar o perfil.
+     */
+    fun uploadFotoPerfil(context: Context, uri: Uri) {
+        val uid = repository.currentUser?.uid
+        if (uid == null) {
+            _uploadFotoState.value = UploadFotoState.Erro("Usuário não está logado")
+            return
+        }
+
+        _uploadFotoState.value = UploadFotoState.Loading
+        viewModelScope.launch {
+            val resultado = storageRepository.uploadFotoPerfil(context, uri, uid)
+            resultado.fold(
+                onSuccess = { url -> _uploadFotoState.value = UploadFotoState.Sucesso(url) },
+                onFailure = { erro -> _uploadFotoState.value = UploadFotoState.Erro(erro.message ?: "Erro ao enviar a foto") }
+            )
+        }
+    }
+
+    fun resetarUploadFotoState() {
+        _uploadFotoState.value = UploadFotoState.Idle
     }
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
+import com.example.zeromangas.data.repository.ViaCepRepository
 import com.example.zeromangas.repository.OrderRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ sealed class CheckoutState {
 class CartViewModel : ViewModel() {
 
     private val orderRepository = OrderRepository()
+    private val viaCepRepository = ViaCepRepository()
 
     private val _itens = MutableStateFlow<List<CartItem>>(emptyList())
     val itens: StateFlow<List<CartItem>> = _itens.asStateFlow()
@@ -40,6 +42,12 @@ class CartViewModel : ViewModel() {
 
     private val _frete = MutableStateFlow<Double?>(null)
     val frete: StateFlow<Double?> = _frete.asStateFlow()
+
+    private val _calculandoFrete = MutableStateFlow(false)
+    val calculandoFrete: StateFlow<Boolean> = _calculandoFrete.asStateFlow()
+
+    private val _cidadeUf = MutableStateFlow<String?>(null)
+    val cidadeUf: StateFlow<String?> = _cidadeUf.asStateFlow()
 
     private val _checkoutState = MutableStateFlow<CheckoutState>(CheckoutState.Idle)
     val checkoutState: StateFlow<CheckoutState> = _checkoutState.asStateFlow()
@@ -83,11 +91,13 @@ class CartViewModel : ViewModel() {
         _cep.value = valor
         _frete.value = null
         _cepErro.value = null
+        _cidadeUf.value = null
     }
 
     /**
-     * Cálculo de frete simulado (sem API externa), porém determinístico:
-     * o valor do frete depende do primeiro dígito do CEP informado.
+     * Calcula o frete consultando o CEP real na API do ViaCEP.
+     * O valor do frete é definido pela região (UF) do endereço encontrado,
+     * simulando a variação de preço por distância que uma transportadora real cobraria.
      */
     fun calcularFrete() {
         val digitos = _cep.value.filter { it.isDigit() }
@@ -95,12 +105,45 @@ class CartViewModel : ViewModel() {
         if (digitos.length != 8) {
             _cepErro.value = "Informe um CEP válido com 8 números."
             _frete.value = null
+            _cidadeUf.value = null
             return
         }
 
         _cepErro.value = null
-        val primeiroDigito = digitos.first().digitToInt()
-        _frete.value = 10.0 + (primeiroDigito * 2.0)
+        _calculandoFrete.value = true
+        _frete.value = null
+        _cidadeUf.value = null
+
+        viewModelScope.launch {
+            val resultado = viaCepRepository.buscarEndereco(digitos)
+            resultado.fold(
+                onSuccess = { endereco ->
+                    _frete.value = valorFretePorUf(endereco.uf)
+                    _cidadeUf.value = "${endereco.cidade} - ${endereco.uf}"
+                    _cepErro.value = null
+                },
+                onFailure = { erro ->
+                    _cepErro.value = erro.message ?: "Não foi possível calcular o frete."
+                    _frete.value = null
+                    _cidadeUf.value = null
+                }
+            )
+            _calculandoFrete.value = false
+        }
+    }
+
+    /**
+     * Valor de frete por região, simulando a distância real a partir do centro de distribuição (São Paulo).
+     */
+    private fun valorFretePorUf(uf: String): Double {
+        val sudeste = setOf("SP", "RJ", "MG", "ES")
+        val sulECentroOeste = setOf("PR", "SC", "RS", "MT", "MS", "GO", "DF")
+
+        return when (uf.uppercase()) {
+            in sudeste -> 12.0
+            in sulECentroOeste -> 18.0
+            else -> 25.0 // Norte e Nordeste
+        }
     }
 
     fun resetarCheckout() {
@@ -136,7 +179,7 @@ class CartViewModel : ViewModel() {
                 valorProdutos = subtotalAtual,
                 valorFrete = freteAtual,
                 valorTotal = subtotalAtual + freteAtual,
-                tipoFrete = "Simulado",
+                tipoFrete = "ViaCEP",
                 cep = _cep.value,
                 data = System.currentTimeMillis(),
                 status = "PROCESSANDO"
@@ -149,6 +192,7 @@ class CartViewModel : ViewModel() {
                     limparCarrinho()
                     _cep.value = ""
                     _frete.value = null
+                    _cidadeUf.value = null
                 },
                 onFailure = {
                     _checkoutState.value = CheckoutState.Erro("Não foi possível finalizar a compra. Tente novamente.")

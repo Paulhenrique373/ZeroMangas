@@ -1,0 +1,21 @@
+package com.example.zeromangas.data.remote
+
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.storage.Storage
+
+/**
+ * Cliente único do Supabase, usado apenas para Storage (upload de fotos de perfil).
+ * A autenticação e os dados continuam no Firebase Auth + Firestore.
+ */
+object SupabaseClient {
+
+    private const val SUPABASE_URL = "https://znqceiplzfeexbjkgebm.supabase.co"
+    private const val SUPABASE_ANON_KEY = "sb_publishable_3YPPorC9cqB8jqN8hDLagA_-aXjOpYV"
+
+    val client = createSupabaseClient(
+        supabaseUrl = SUPABASE_URL,
+        supabaseKey = SUPABASE_ANON_KEY
+    ) {
+        install(Storage)
+    }
+}
