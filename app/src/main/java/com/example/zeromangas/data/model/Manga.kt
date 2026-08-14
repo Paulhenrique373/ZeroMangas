@@ -9,5 +9,6 @@ data class Manga(
     val preco: Double = 0.0,
     val imagemUrl: String = "",
     val descricao: String = "",
-    val emDestaque: Boolean = false
+    val emDestaque: Boolean = false,
+    val estoque: Int = 10
 )

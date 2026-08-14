@@ -109,7 +109,7 @@ class AuthRepository {
                 "Sem conexão com a internet. Verifique sua rede e tente novamente."
 
             else ->
-                "Ocorreu um erro inesperado. Tente novamente."
+                "Ocorreu um erro inesperado: ${e.message}"
         }
     }
 }

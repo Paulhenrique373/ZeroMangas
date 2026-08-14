@@ -491,7 +491,7 @@ fun MangaCard(
                 )
             }
 
-            if (manga.emDestaque) {
+            if (manga.emDestaque && manga.estoque > 0) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -500,6 +500,23 @@ fun MangaCard(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text("🔥", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            if (manga.estoque <= 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.9f))
+                        .padding(vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Esgotado",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onError
+                    )
                 }
             }
 

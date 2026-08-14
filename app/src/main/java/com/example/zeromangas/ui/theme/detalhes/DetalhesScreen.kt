@@ -33,6 +33,9 @@ fun DetalhesScreen(
         return
     }
 
+    val esgotado = manga.estoque <= 0
+    val estoqueBaixo = manga.estoque in 1..5
+
     Column(modifier = Modifier.fillMaxSize()) {
 
         Row(
@@ -79,6 +82,23 @@ fun DetalhesScreen(
                         Text("🔥 Destaque", style = MaterialTheme.typography.labelSmall)
                     }
                 }
+
+                if (esgotado) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.error)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            "Esgotado",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onError
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -113,6 +133,22 @@ fun DetalhesScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
+            if (esgotado) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Produto esgotado no momento.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else if (estoqueBaixo) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Últimas ${manga.estoque} unidades!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
@@ -132,11 +168,12 @@ fun DetalhesScreen(
 
         Button(
             onClick = { onAdicionarAoCarrinho(manga) },
+            enabled = !esgotado,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            Text("Adicionar ao Carrinho")
+            Text(if (esgotado) "Produto esgotado" else "Adicionar ao Carrinho")
         }
     }
 }

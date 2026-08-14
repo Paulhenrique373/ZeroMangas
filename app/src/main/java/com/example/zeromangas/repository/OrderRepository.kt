@@ -37,4 +37,17 @@ class OrderRepository {
             Result.failure(e)
         }
     }
+
+    /**
+     * Cancela um pedido, alterando o campo "status" para "CANCELADO" no Firestore.
+     * A tela deve permitir isso apenas enquanto o pedido ainda está "Processando".
+     */
+    suspend fun cancelarPedido(pedidoId: String): Result<Unit> {
+        return try {
+            ordersCollection.document(pedidoId).update("status", "CANCELADO").await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

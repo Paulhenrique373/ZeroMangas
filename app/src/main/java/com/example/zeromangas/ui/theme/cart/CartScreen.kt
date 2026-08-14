@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,11 +45,19 @@ fun CartScreen(
     val calculandoFrete by cartViewModel.calculandoFrete.collectAsState()
     val cidadeUf by cartViewModel.cidadeUf.collectAsState()
     val checkoutState by cartViewModel.checkoutState.collectAsState()
+    val avisoEstoque by cartViewModel.avisoEstoque.collectAsState()
 
     val subtotal = itens.sumOf { it.subtotal }
     val total = subtotal + (frete ?: 0.0)
 
     var mostrarResumo by remember { mutableStateOf(false) }
+
+    LaunchedEffect(avisoEstoque) {
+        if (avisoEstoque != null) {
+            delay(3000)
+            cartViewModel.limparAvisoEstoque()
+        }
+    }
 
     LaunchedEffect(checkoutState) {
         val estado = checkoutState
@@ -75,6 +84,24 @@ fun CartScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 8.dp)
             )
+        }
+
+        if (avisoEstoque != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = avisoEstoque ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
         if (itens.isEmpty()) {

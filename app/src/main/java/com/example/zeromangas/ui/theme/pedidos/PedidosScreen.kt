@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.repository.OrderRepository
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,9 +29,13 @@ fun PedidosScreen(
     onVoltar: () -> Unit
 ) {
     val orderRepository = remember { OrderRepository() }
+    val escopo = rememberCoroutineScope()
+
     var pedidos by remember { mutableStateOf<List<Order>>(emptyList()) }
     var carregando by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
+    var idsCancelando by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var erroCancelamento by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(usuarioId) {
         carregando = true
@@ -42,6 +47,24 @@ fun PedidosScreen(
             erro = "Não foi possível carregar seus pedidos."
         }
         carregando = false
+    }
+
+    fun cancelarPedido(pedido: Order) {
+        idsCancelando = idsCancelando + pedido.id
+        escopo.launch {
+            val resultado = orderRepository.cancelarPedido(pedido.id)
+            resultado.fold(
+                onSuccess = {
+                    pedidos = pedidos.map {
+                        if (it.id == pedido.id) it.copy(status = "CANCELADO") else it
+                    }
+                },
+                onFailure = {
+                    erroCancelamento = "Não foi possível cancelar o pedido. Tente novamente."
+                }
+            )
+            idsCancelando = idsCancelando - pedido.id
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -60,6 +83,24 @@ fun PedidosScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 8.dp)
             )
+        }
+
+        if (erroCancelamento != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = erroCancelamento ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
         when {
@@ -94,7 +135,11 @@ fun PedidosScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(pedidos, key = { it.id }) { pedido ->
-                        PedidoCard(pedido = pedido)
+                        PedidoCard(
+                            pedido = pedido,
+                            cancelando = pedido.id in idsCancelando,
+                            onCancelar = { cancelarPedido(pedido) }
+                        )
                     }
                     item { Spacer(modifier = Modifier.height(20.dp)) }
                 }
@@ -105,12 +150,14 @@ fun PedidosScreen(
 
 /**
  * Calcula o status do pedido com base em quanto tempo passou desde a compra,
- * já que o app não tem um sistema de logística real por trás.
+ * a menos que o pedido já tenha sido cancelado manualmente pelo usuário.
  *
  * < 1 dia: Processando | 1 a 3 dias: Enviado | mais de 3 dias: Entregue
  */
-private fun calcularStatusPedido(dataPedido: Long): String {
-    val diasDesdeACompra = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - dataPedido)
+private fun calcularStatusPedido(pedido: Order): String {
+    if (pedido.status == "CANCELADO") return "Cancelado"
+
+    val diasDesdeACompra = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - pedido.data)
     return when {
         diasDesdeACompra < 1 -> "Processando"
         diasDesdeACompra in 1..3 -> "Enviado"
@@ -123,14 +170,22 @@ private fun corDoStatus(status: String): Color {
     return when (status) {
         "Processando" -> MaterialTheme.colorScheme.tertiary
         "Enviado" -> MaterialTheme.colorScheme.secondary
+        "Cancelado" -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
 }
 
 @Composable
-fun PedidoCard(pedido: Order) {
+fun PedidoCard(
+    pedido: Order,
+    cancelando: Boolean = false,
+    onCancelar: () -> Unit = {}
+) {
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
-    val statusAtual = remember(pedido.data) { calcularStatusPedido(pedido.data) }
+    val statusAtual = remember(pedido.data, pedido.status) { calcularStatusPedido(pedido) }
+    val podeCancelar = statusAtual == "Processando"
+
+    var mostrarConfirmacao by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -203,5 +258,46 @@ fun PedidoCard(pedido: Order) {
                 color = MaterialTheme.colorScheme.primary
             )
         }
+
+        if (podeCancelar) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { mostrarConfirmacao = true },
+                enabled = !cancelando,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (cancelando) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                    Text("Cancelar pedido")
+                }
+            }
+        }
+    }
+
+    if (mostrarConfirmacao) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacao = false },
+            title = { Text("Cancelar pedido") },
+            text = { Text("Tem certeza que deseja cancelar este pedido? Essa ação não pode ser desfeita.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarConfirmacao = false
+                    onCancelar()
+                }) {
+                    Text("Sim, cancelar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarConfirmacao = false }) {
+                    Text("Voltar")
+                }
+            }
+        )
     }
 }

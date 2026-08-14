@@ -52,9 +52,27 @@ class CartViewModel : ViewModel() {
     private val _checkoutState = MutableStateFlow<CheckoutState>(CheckoutState.Idle)
     val checkoutState: StateFlow<CheckoutState> = _checkoutState.asStateFlow()
 
+    private val _avisoEstoque = MutableStateFlow<String?>(null)
+    val avisoEstoque: StateFlow<String?> = _avisoEstoque.asStateFlow()
+
+    fun limparAvisoEstoque() {
+        _avisoEstoque.value = null
+    }
+
     fun adicionarItem(manga: Manga) {
+        if (manga.estoque <= 0) {
+            _avisoEstoque.value = "${manga.nome} está esgotado."
+            return
+        }
+
         val listaAtual = _itens.value
         val itemExistente = listaAtual.find { it.manga.id == manga.id }
+        val quantidadeAtualNoCarrinho = itemExistente?.quantidade ?: 0
+
+        if (quantidadeAtualNoCarrinho + 1 > manga.estoque) {
+            _avisoEstoque.value = "Só temos ${manga.estoque} unidade(s) de ${manga.nome} em estoque."
+            return
+        }
 
         _itens.value = if (itemExistente != null) {
             listaAtual.map {
@@ -66,6 +84,13 @@ class CartViewModel : ViewModel() {
     }
 
     fun aumentarQuantidade(manga: Manga) {
+        val itemAtual = _itens.value.find { it.manga.id == manga.id } ?: return
+
+        if (itemAtual.quantidade + 1 > manga.estoque) {
+            _avisoEstoque.value = "Só temos ${manga.estoque} unidade(s) de ${manga.nome} em estoque."
+            return
+        }
+
         _itens.value = _itens.value.map {
             if (it.manga.id == manga.id) it.copy(quantidade = it.quantidade + 1) else it
         }
@@ -80,6 +105,7 @@ class CartViewModel : ViewModel() {
     }
 
     fun removerItem(manga: Manga) {
+
         _itens.value = _itens.value.filterNot { it.manga.id == manga.id }
     }
 
