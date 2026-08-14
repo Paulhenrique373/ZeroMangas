@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -23,10 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.CartItem
+import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.CheckoutState
 
@@ -46,9 +49,14 @@ fun CartScreen(
     val cidadeUf by cartViewModel.cidadeUf.collectAsState()
     val checkoutState by cartViewModel.checkoutState.collectAsState()
     val avisoEstoque by cartViewModel.avisoEstoque.collectAsState()
+    val cupomInput by cartViewModel.cupomInput.collectAsState()
+    val cupomAplicado by cartViewModel.cupomAplicado.collectAsState()
+    val cupomErro by cartViewModel.cupomErro.collectAsState()
+    val validandoCupom by cartViewModel.validandoCupom.collectAsState()
+    val desconto by cartViewModel.desconto.collectAsState()
 
     val subtotal = itens.sumOf { it.subtotal }
-    val total = subtotal + (frete ?: 0.0)
+    val total = subtotal + (frete ?: 0.0) - desconto
 
     var mostrarResumo by remember { mutableStateOf(false) }
 
@@ -145,11 +153,31 @@ fun CartScreen(
                         onCalcularFrete = { cartViewModel.calcularFrete() }
                     )
                 }
+
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SecaoCupom(
+                        cupomInput = cupomInput,
+                        cupomAplicado = cupomAplicado,
+                        cupomErro = cupomErro,
+                        validando = validandoCupom,
+                        onCupomInputChange = { cartViewModel.atualizarCupomInput(it) },
+                        onAplicarCupom = { cartViewModel.aplicarCupom() },
+                        onRemoverCupom = { cartViewModel.removerCupom() }
+                    )
+                }
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
                 LinhaResumo(rotulo = "Subtotal", valor = subtotal)
                 LinhaResumo(rotulo = "Frete", valor = frete)
+                if (cupomAplicado != null) {
+                    LinhaResumo(
+                        rotulo = "Desconto (${cupomAplicado?.codigo})",
+                        valor = null,
+                        textoAlternativo = "- R$ ${"%.2f".format(desconto)}"
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Divider()
                 Spacer(modifier = Modifier.height(8.dp))
@@ -205,6 +233,13 @@ fun CartScreen(
                     LinhaResumo(rotulo = "Itens", valor = null, textoAlternativo = "${itens.sumOf { it.quantidade }}")
                     LinhaResumo(rotulo = "Subtotal", valor = subtotal)
                     LinhaResumo(rotulo = "Frete", valor = frete)
+                    if (cupomAplicado != null) {
+                        LinhaResumo(
+                            rotulo = "Desconto (${cupomAplicado?.codigo})",
+                            valor = null,
+                            textoAlternativo = "- R$ ${"%.2f".format(desconto)}"
+                        )
+                    }
                     if (cep.isNotBlank()) {
                         LinhaResumo(rotulo = "CEP", valor = null, textoAlternativo = cep)
                     }
@@ -325,6 +360,76 @@ fun SecaoFrete(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SecaoCupom(
+    cupomInput: String,
+    cupomAplicado: Cupom?,
+    cupomErro: String?,
+    validando: Boolean,
+    onCupomInputChange: (String) -> Unit,
+    onAplicarCupom: () -> Unit,
+    onRemoverCupom: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp)
+    ) {
+        Text("Cupom de desconto", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (cupomAplicado != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "\"${cupomAplicado.codigo}\" aplicado",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                IconButton(onClick = onRemoverCupom, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Remover cupom", modifier = Modifier.size(18.dp))
+                }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = cupomInput,
+                    onValueChange = onCupomInputChange,
+                    placeholder = { Text("Código do cupom") },
+                    singleLine = true,
+                    isError = cupomErro != null,
+                    enabled = !validando,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Button(onClick = onAplicarCupom, enabled = !validando) {
+                    if (validando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Aplicar")
+                    }
+                }
+            }
+
+            if (cupomErro != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(cupomErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }

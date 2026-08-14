@@ -3,13 +3,16 @@ package com.example.zeromangas.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.CartItem
+import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.data.repository.ViaCepRepository
+import com.example.zeromangas.repository.CupomRepository
 import com.example.zeromangas.repository.OrderRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +29,7 @@ class CartViewModel : ViewModel() {
 
     private val orderRepository = OrderRepository()
     private val viaCepRepository = ViaCepRepository()
+    private val cupomRepository = CupomRepository()
 
     private val _itens = MutableStateFlow<List<CartItem>>(emptyList())
     val itens: StateFlow<List<CartItem>> = _itens.asStateFlow()
@@ -54,6 +58,26 @@ class CartViewModel : ViewModel() {
 
     private val _avisoEstoque = MutableStateFlow<String?>(null)
     val avisoEstoque: StateFlow<String?> = _avisoEstoque.asStateFlow()
+
+    // ---- Cupom de desconto ----
+
+    private val _cupomInput = MutableStateFlow("")
+    val cupomInput: StateFlow<String> = _cupomInput.asStateFlow()
+
+    private val _cupomAplicado = MutableStateFlow<Cupom?>(null)
+    val cupomAplicado: StateFlow<Cupom?> = _cupomAplicado.asStateFlow()
+
+    private val _cupomErro = MutableStateFlow<String?>(null)
+    val cupomErro: StateFlow<String?> = _cupomErro.asStateFlow()
+
+    private val _validandoCupom = MutableStateFlow(false)
+    val validandoCupom: StateFlow<Boolean> = _validandoCupom.asStateFlow()
+
+    val desconto: StateFlow<Double> = combine(_itens, _cupomAplicado) { itens, cupom ->
+        if (cupom == null) return@combine 0.0
+        val subtotalAtual = itens.sumOf { it.subtotal }
+        cupom.calcularDesconto(subtotalAtual)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     fun limparAvisoEstoque() {
         _avisoEstoque.value = null
@@ -172,6 +196,54 @@ class CartViewModel : ViewModel() {
         }
     }
 
+    fun atualizarCupomInput(valor: String) {
+        _cupomInput.value = valor
+        _cupomErro.value = null
+    }
+
+    /**
+     * Valida o código digitado contra a coleção "cupons" do Firestore e,
+     * se válido, aplica o desconto sobre o subtotal atual do carrinho.
+     */
+    fun aplicarCupom() {
+        val codigo = _cupomInput.value.trim()
+
+        if (codigo.isBlank()) {
+            _cupomErro.value = "Informe um código de cupom."
+            return
+        }
+
+        _cupomErro.value = null
+        _validandoCupom.value = true
+
+        viewModelScope.launch {
+            val resultado = cupomRepository.buscarCupom(codigo)
+            resultado.fold(
+                onSuccess = { cupom ->
+                    val subtotalAtual = _itens.value.sumOf { it.subtotal }
+                    if (subtotalAtual < cupom.valorMinimo) {
+                        _cupomErro.value = "Este cupom exige compra mínima de R$ ${"%.2f".format(cupom.valorMinimo)}."
+                        _cupomAplicado.value = null
+                    } else {
+                        _cupomAplicado.value = cupom
+                        _cupomErro.value = null
+                    }
+                },
+                onFailure = { erro ->
+                    _cupomAplicado.value = null
+                    _cupomErro.value = erro.message ?: "Não foi possível validar o cupom."
+                }
+            )
+            _validandoCupom.value = false
+        }
+    }
+
+    fun removerCupom() {
+        _cupomAplicado.value = null
+        _cupomInput.value = ""
+        _cupomErro.value = null
+    }
+
     fun resetarCheckout() {
         _checkoutState.value = CheckoutState.Idle
     }
@@ -199,14 +271,19 @@ class CartViewModel : ViewModel() {
 
         viewModelScope.launch {
             val subtotalAtual = itensAtuais.sumOf { it.subtotal }
+            val cupomAtual = _cupomAplicado.value
+            val descontoAtual = cupomAtual?.calcularDesconto(subtotalAtual) ?: 0.0
+
             val pedido = Order(
                 userId = userId,
                 itens = itensAtuais,
                 valorProdutos = subtotalAtual,
                 valorFrete = freteAtual,
-                valorTotal = subtotalAtual + freteAtual,
+                valorDesconto = descontoAtual,
+                valorTotal = subtotalAtual + freteAtual - descontoAtual,
                 tipoFrete = "ViaCEP",
                 cep = _cep.value,
+                cupomCodigo = cupomAtual?.codigo ?: "",
                 data = System.currentTimeMillis(),
                 status = "PROCESSANDO"
             )
@@ -219,6 +296,7 @@ class CartViewModel : ViewModel() {
                     _cep.value = ""
                     _frete.value = null
                     _cidadeUf.value = null
+                    removerCupom()
                 },
                 onFailure = {
                     _checkoutState.value = CheckoutState.Erro("Não foi possível finalizar a compra. Tente novamente.")

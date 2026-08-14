@@ -6,9 +6,11 @@ data class Order(
     val itens: List<CartItem> = emptyList(),
     val valorProdutos: Double = 0.0,
     val valorFrete: Double = 0.0,
+    val valorDesconto: Double = 0.0,
     val valorTotal: Double = 0.0,
     val tipoFrete: String = "",
     val cep: String = "",
+    val cupomCodigo: String = "",
     val data: Long = System.currentTimeMillis(),
     val status: String = "Concluído"
 )
