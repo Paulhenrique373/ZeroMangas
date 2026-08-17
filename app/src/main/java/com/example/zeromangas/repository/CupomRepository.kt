@@ -1,33 +1,55 @@
 package com.example.zeromangas.repository
 
 import com.example.zeromangas.data.model.Cupom
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
+import com.example.zeromangas.data.remote.SupabaseClient
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+private data class CupomDto(
+    val id: String? = null,
+    val codigo: String,
+    @SerialName("tipo_desconto") val tipoDesconto: String = "PERCENTUAL",
+    val valor: Double = 0.0,
+    val ativo: Boolean = true,
+    @SerialName("valor_minimo") val valorMinimo: Double = 0.0
+) {
+    fun paraCupom() = Cupom(
+        codigo = codigo,
+        tipoDesconto = tipoDesconto,
+        valor = valor,
+        ativo = ativo,
+        valorMinimo = valorMinimo
+    )
+}
 
 class CupomRepository {
 
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
-    private val cuponsCollection = db.collection("cupons")
+    private val cuponsTable = SupabaseClient.client.postgrest.from("cupons")
 
     /**
-     * Busca um cupom pelo código (case-insensitive) na coleção "cupons".
+     * Busca um cupom pelo código (sem diferenciar maiúsculas/minúsculas) na tabela "cupons".
      * Retorna erro se o cupom não existir ou estiver inativo.
      */
     suspend fun buscarCupom(codigo: String): Result<Cupom> {
         return try {
-            val codigoNormalizado = codigo.trim().uppercase()
+            val codigoNormalizado = codigo.trim()
 
-            val snapshot = cuponsCollection
-                .whereEqualTo("codigo", codigoNormalizado)
-                .get()
-                .await()
+            val lista = cuponsTable
+                .select {
+                    filter {
+                        ilike("codigo", codigoNormalizado)
+                    }
+                }
+                .decodeList<CupomDto>()
 
-            val cupom = snapshot.documents.firstOrNull()?.toObject(Cupom::class.java)
+            val cupomDto = lista.firstOrNull()
 
             when {
-                cupom == null -> Result.failure(Exception("Cupom inválido."))
-                !cupom.ativo -> Result.failure(Exception("Este cupom não está mais ativo."))
-                else -> Result.success(cupom)
+                cupomDto == null -> Result.failure(Exception("Cupom inválido."))
+                !cupomDto.ativo -> Result.failure(Exception("Este cupom não está mais ativo."))
+                else -> Result.success(cupomDto.paraCupom())
             }
         } catch (e: Exception) {
             Result.failure(Exception("Não foi possível validar o cupom. Tente novamente."))

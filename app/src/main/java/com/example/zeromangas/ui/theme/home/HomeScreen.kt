@@ -53,6 +53,10 @@ fun HomeScreen(
     onLogoutClick: () -> Unit = {}
 ) {
     val mangas by homeViewModel.mangasFiltrados.collectAsState()
+    val categorias by homeViewModel.categorias.collectAsState()
+    val marcas by homeViewModel.marcas.collectAsState()
+    val carregando by homeViewModel.carregando.collectAsState()
+    val erro by homeViewModel.erro.collectAsState()
     val textoBusca by homeViewModel.textoBusca.collectAsState()
     val categoriaSelecionada by homeViewModel.categoriaSelecionada.collectAsState()
     val marcaSelecionada by homeViewModel.marcaSelecionada.collectAsState()
@@ -177,7 +181,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(homeViewModel.categorias) { categoria ->
+            items(categorias) { categoria ->
                 FiltroChip(
                     texto = categoria,
                     selecionado = categoriaSelecionada == categoria,
@@ -188,39 +192,68 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        if (mangas.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Nenhum mangá encontrado.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        when {
+            carregando && mangas.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 8.dp,
-                    bottom = 24.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(mangas) { manga ->
-                    MangaCard(
-                        manga = manga,
-                        onClick = { onMangaClick(manga) },
-                        isFavorito = manga.id in favoritosIds,
-                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+
+            erro != null && mangas.isEmpty() -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = erro ?: "",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = { homeViewModel.carregarDados() }) {
+                        Text("Tentar novamente")
+                    }
+                }
+            }
+
+            mangas.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Nenhum mangá encontrado.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            else -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 8.dp,
+                        bottom = 24.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(mangas) { manga ->
+                        MangaCard(
+                            manga = manga,
+                            onClick = { onMangaClick(manga) },
+                            isFavorito = manga.id in favoritosIds,
+                            onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+                        )
+                    }
                 }
             }
         }
@@ -228,8 +261,8 @@ fun HomeScreen(
 
     if (mostrarFiltros) {
         FiltrosBottomSheet(
-            categorias = homeViewModel.categorias,
-            marcas = homeViewModel.marcas,
+            categorias = categorias,
+            marcas = marcas,
             categoriaSelecionada = categoriaSelecionada,
             marcaSelecionada = marcaSelecionada,
             precoMinimo = precoMinimo,

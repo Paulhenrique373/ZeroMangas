@@ -1,37 +1,56 @@
 package com.example.zeromangas.repository
 
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
+import com.example.zeromangas.data.remote.SupabaseClient
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class FavoritoDto(
+    val id: String? = null,
+    @SerialName("usuario_id") val usuarioId: String,
+    @SerialName("produto_id") val produtoId: String
+)
 
 /**
- * Guarda os favoritos de cada usuário na coleção "favoritos".
- * O id do documento é "usuarioId_mangaId", o que evita duplicados
- * e torna a remoção uma operação direta por id (sem precisar de query).
+ * Guarda os favoritos de cada usuário na tabela "favoritos" do Supabase (Postgres).
+ * Como o id da linha é um UUID aleatório (não composto como era no Firestore),
+ * verificamos se o favorito já existe antes de inserir, evitando duplicados.
  */
 class FavoritoRepository {
 
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
-    private val favoritosCollection = db.collection("favoritos")
+    private val favoritosTable = SupabaseClient.client.postgrest.from("favoritos")
 
-    private fun idDocumento(usuarioId: String, mangaId: String) = "${usuarioId}_$mangaId"
-
-    suspend fun adicionarFavorito(usuarioId: String, mangaId: String): Result<Unit> {
+    suspend fun adicionarFavorito(usuarioId: String, produtoId: String): Result<Unit> {
         return try {
-            val dados = hashMapOf(
-                "usuarioId" to usuarioId,
-                "mangaId" to mangaId,
-                "data" to System.currentTimeMillis()
-            )
-            favoritosCollection.document(idDocumento(usuarioId, mangaId)).set(dados).await()
+            val existentes = favoritosTable
+                .select {
+                    filter {
+                        eq("usuario_id", usuarioId)
+                        eq("produto_id", produtoId)
+                    }
+                }
+                .decodeList<FavoritoDto>()
+
+            if (existentes.isEmpty()) {
+                favoritosTable.insert(
+                    FavoritoDto(usuarioId = usuarioId, produtoId = produtoId)
+                )
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun removerFavorito(usuarioId: String, mangaId: String): Result<Unit> {
+    suspend fun removerFavorito(usuarioId: String, produtoId: String): Result<Unit> {
         return try {
-            favoritosCollection.document(idDocumento(usuarioId, mangaId)).delete().await()
+            favoritosTable.delete {
+                filter {
+                    eq("usuario_id", usuarioId)
+                    eq("produto_id", produtoId)
+                }
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -39,16 +58,18 @@ class FavoritoRepository {
     }
 
     /**
-     * Retorna a lista de ids de mangás favoritados pelo usuário.
+     * Retorna a lista de ids de produtos favoritados pelo usuário.
      */
     suspend fun listarFavoritos(usuarioId: String): Result<List<String>> {
         return try {
-            val snapshot = favoritosCollection
-                .whereEqualTo("usuarioId", usuarioId)
-                .get()
-                .await()
-            val ids = snapshot.documents.mapNotNull { it.getString("mangaId") }
-            Result.success(ids)
+            val lista = favoritosTable
+                .select {
+                    filter {
+                        eq("usuario_id", usuarioId)
+                    }
+                }
+                .decodeList<FavoritoDto>()
+            Result.success(lista.map { it.produtoId })
         } catch (e: Exception) {
             Result.failure(e)
         }

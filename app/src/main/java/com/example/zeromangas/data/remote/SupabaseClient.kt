@@ -1,11 +1,13 @@
 package com.example.zeromangas.data.remote
 
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 
 /**
- * Cliente único do Supabase, usado apenas para Storage (upload de fotos de perfil).
- * A autenticação e os dados continuam no Firebase Auth + Firestore.
+ * Cliente único do Supabase, usado para Storage (upload de fotos de perfil)
+ * e Postgrest (banco de dados relacional: produtos, pedidos, favoritos, cupons).
+ * A autenticação continua no Firebase Auth.
  */
 object SupabaseClient {
 
@@ -17,5 +19,6 @@ object SupabaseClient {
         supabaseKey = SUPABASE_ANON_KEY
     ) {
         install(Storage)
+        install(Postgrest)
     }
 }

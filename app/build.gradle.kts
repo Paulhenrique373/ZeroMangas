@@ -96,8 +96,12 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Supabase Storage (upload/URL pública das fotos de perfil no bucket "avatars")
+    // e Postgrest (banco de dados relacional: produtos, pedidos, favoritos, cupons)
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.storage) {
+        exclude(group = "androidx.browser", module = "browser")
+    }
+    implementation(libs.supabase.postgrest) {
         exclude(group = "androidx.browser", module = "browser")
     }
     implementation(libs.ktor.client.android)

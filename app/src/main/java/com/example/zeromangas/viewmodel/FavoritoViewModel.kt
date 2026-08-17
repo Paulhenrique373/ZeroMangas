@@ -23,10 +23,15 @@ class FavoritoViewModel : ViewModel() {
 
     /**
      * Lista de mangás favoritados (já convertida de ids para objetos Manga completos),
-     * pronta para ser exibida na tela de Favoritos.
+     * pronta para ser exibida na tela de Favoritos. O "map" aqui aceita suspend porque
+     * listarMangas() agora busca no Supabase; se der erro de rede, vira lista vazia.
      */
     val mangasFavoritos: StateFlow<List<Manga>> = _favoritosIds
-        .map { ids -> mangaRepository.listarMangas().filter { it.id in ids } }
+        .map { ids ->
+            mangaRepository.listarMangas()
+                .getOrElse { emptyList() }
+                .filter { it.id in ids }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private var usuarioIdCarregado: String? = null
@@ -46,7 +51,7 @@ class FavoritoViewModel : ViewModel() {
 
     /**
      * Adiciona/remove o favorito com atualização otimista (a UI reage na hora),
-     * e desfaz a mudança se a operação no Firestore falhar.
+     * e desfaz a mudança se a operação no banco falhar.
      */
     fun alternarFavorito(usuarioId: String, manga: Manga) {
         if (usuarioId.isBlank()) return

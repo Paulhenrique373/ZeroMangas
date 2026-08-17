@@ -1,6 +1,17 @@
 package com.example.zeromangas.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -8,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.ui.detalhes.DetalhesScreen
@@ -42,7 +54,7 @@ sealed class Tela(val rota: String) {
 @Composable
 fun NavGraph() {
     val navController: NavHostController = rememberNavController()
-    val mangaRepository = MangaRepository()
+    val mangaRepository = remember { MangaRepository() }
     val authRepository = AuthRepository()
     val cartViewModel: CartViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
@@ -116,16 +128,48 @@ fun NavGraph() {
             arguments = listOf(navArgument("mangaId") { type = NavType.StringType })
         ) { backStackEntry ->
             val mangaId = backStackEntry.arguments?.getString("mangaId") ?: ""
-            val manga = mangaRepository.listarMangas().find { it.id == mangaId }
 
-            DetalhesScreen(
-                manga = manga,
-                onVoltar = { navController.popBackStack() },
-                onAdicionarAoCarrinho = { mangaSelecionado ->
-                    cartViewModel.adicionarItem(mangaSelecionado)
-                    navController.popBackStack()
+            var manga by remember { mutableStateOf<Manga?>(null) }
+            var carregando by remember { mutableStateOf(true) }
+            var erro by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(mangaId) {
+                carregando = true
+                erro = null
+                val resultado = mangaRepository.listarMangas()
+                resultado.fold(
+                    onSuccess = { lista ->
+                        manga = lista.find { it.id == mangaId }
+                    },
+                    onFailure = {
+                        erro = "Não foi possível carregar o mangá."
+                    }
+                )
+                carregando = false
+            }
+
+            when {
+                carregando -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
                 }
-            )
+                erro != null -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Text(text = erro ?: "", modifier = Modifier.align(Alignment.Center))
+                    }
+                }
+                else -> {
+                    DetalhesScreen(
+                        manga = manga,
+                        onVoltar = { navController.popBackStack() },
+                        onAdicionarAoCarrinho = { mangaSelecionado ->
+                            cartViewModel.adicionarItem(mangaSelecionado)
+                            navController.popBackStack()
+                        }
+                    )
+                }
+            }
         }
 
         composable(Tela.Carrinho.rota) {
