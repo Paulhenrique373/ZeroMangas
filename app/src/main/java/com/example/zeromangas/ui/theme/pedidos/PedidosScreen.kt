@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.repository.OrderRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,6 +37,16 @@ fun PedidosScreen(
     var erro by remember { mutableStateOf<String?>(null) }
     var idsCancelando by remember { mutableStateOf<Set<String>>(emptySet()) }
     var erroCancelamento by remember { mutableStateOf<String?>(null) }
+
+    // Relógio interno: atualiza a cada 5 segundos para que o status dos pedidos
+    // (Processando -> Enviado -> Entregue) evolua visualmente sem precisar sair da tela.
+    var agora by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5000)
+            agora = System.currentTimeMillis()
+        }
+    }
 
     LaunchedEffect(usuarioId) {
         carregando = true
@@ -137,6 +148,7 @@ fun PedidosScreen(
                     items(pedidos, key = { it.id }) { pedido ->
                         PedidoCard(
                             pedido = pedido,
+                            agora = agora,
                             cancelando = pedido.id in idsCancelando,
                             onCancelar = { cancelarPedido(pedido) }
                         )
@@ -152,15 +164,15 @@ fun PedidosScreen(
  * Calcula o status do pedido com base em quanto tempo passou desde a compra,
  * a menos que o pedido já tenha sido cancelado manualmente pelo usuário.
  *
- * < 1 dia: Processando | 1 a 3 dias: Enviado | mais de 3 dias: Entregue
+ * < 2 minutos: Processando | 2 a 5 minutos: Enviado | mais de 5 minutos: Entregue
  */
-private fun calcularStatusPedido(pedido: Order): String {
+private fun calcularStatusPedido(pedido: Order, agora: Long): String {
     if (pedido.status == "CANCELADO") return "Cancelado"
 
-    val diasDesdeACompra = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - pedido.data)
+    val minutosDesdeACompra = TimeUnit.MILLISECONDS.toMinutes(agora - pedido.data)
     return when {
-        diasDesdeACompra < 1 -> "Processando"
-        diasDesdeACompra in 1..3 -> "Enviado"
+        minutosDesdeACompra < 2 -> "Processando"
+        minutosDesdeACompra in 2..4 -> "Enviado"
         else -> "Entregue"
     }
 }
@@ -178,11 +190,12 @@ private fun corDoStatus(status: String): Color {
 @Composable
 fun PedidoCard(
     pedido: Order,
+    agora: Long = System.currentTimeMillis(),
     cancelando: Boolean = false,
     onCancelar: () -> Unit = {}
 ) {
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
-    val statusAtual = remember(pedido.data, pedido.status) { calcularStatusPedido(pedido) }
+    val statusAtual = remember(pedido.data, pedido.status, agora) { calcularStatusPedido(pedido, agora) }
     val podeCancelar = statusAtual == "Processando"
 
     var mostrarConfirmacao by remember { mutableStateOf(false) }

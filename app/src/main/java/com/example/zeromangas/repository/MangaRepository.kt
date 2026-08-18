@@ -7,6 +7,18 @@ import com.example.zeromangas.data.remote.ProdutoDto
 import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import kotlinx.serialization.Serializable
+
+@Serializable
+private data class EstoqueDto(
+    val id: String,
+    val estoque: Int
+)
+
+@Serializable
+private data class EstoqueUpdateDto(
+    val estoque: Int
+)
 
 class MangaRepository {
 
@@ -57,6 +69,57 @@ class MangaRepository {
         return try {
             val lista = marcasTable.select().decodeList<MarcaDto>()
             Result.success(lista.map { it.nome }.sorted())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Busca o estoque atual (direto do banco) dos produtos informados.
+     * Usado no checkout para validar a compra contra o estoque real,
+     * em vez de confiar no valor que já estava carregado na tela.
+     */
+    suspend fun buscarEstoqueAtual(produtoIds: List<String>): Result<Map<String, Int>> {
+        if (produtoIds.isEmpty()) {
+            return Result.success(emptyMap())
+        }
+
+        return try {
+            val dtos = produtosTable
+                .select(columns = Columns.list("id", "estoque")) {
+                    filter {
+                        isIn("id", produtoIds)
+                    }
+                }
+                .decodeList<EstoqueDto>()
+
+            Result.success(dtos.associate { it.id to it.estoque })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Desconta a quantidade comprada do estoque de um produto após a compra ser confirmada.
+     * O filtro por "estoque = estoqueAtual" evita que duas compras simultâneas
+     * descontem o mesmo estoque duas vezes (proteção básica contra condição de corrida).
+     */
+    suspend fun descontarEstoque(
+        produtoId: String,
+        quantidadeComprada: Int,
+        estoqueAtual: Int
+    ): Result<Unit> {
+        return try {
+            val novoEstoque = (estoqueAtual - quantidadeComprada).coerceAtLeast(0)
+
+            produtosTable.update(EstoqueUpdateDto(estoque = novoEstoque)) {
+                filter {
+                    eq("id", produtoId)
+                    eq("estoque", estoqueAtual)
+                }
+            }
+
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

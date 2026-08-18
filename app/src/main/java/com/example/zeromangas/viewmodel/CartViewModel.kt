@@ -8,6 +8,7 @@ import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.data.repository.ViaCepRepository
 import com.example.zeromangas.repository.CupomRepository
+import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.repository.OrderRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,7 @@ class CartViewModel : ViewModel() {
     private val orderRepository = OrderRepository()
     private val viaCepRepository = ViaCepRepository()
     private val cupomRepository = CupomRepository()
+    private val mangaRepository = MangaRepository()
 
     private val _itens = MutableStateFlow<List<CartItem>>(emptyList())
     val itens: StateFlow<List<CartItem>> = _itens.asStateFlow()
@@ -270,6 +272,35 @@ class CartViewModel : ViewModel() {
         _checkoutState.value = CheckoutState.Carregando
 
         viewModelScope.launch {
+            // 1. Buscar o estoque real e atualizado do banco para todos os produtos do carrinho.
+            val produtoIds = itensAtuais.map { it.manga.id }
+            val resultadoEstoque = mangaRepository.buscarEstoqueAtual(produtoIds)
+
+            val estoqueAtualMap = resultadoEstoque.getOrElse {
+                _checkoutState.value = CheckoutState.Erro("Não foi possível verificar o estoque. Tente novamente.")
+                return@launch
+            }
+
+            // 2. Validar cada item do carrinho contra o estoque real.
+            for (item in itensAtuais) {
+                val estoqueDisponivel = estoqueAtualMap[item.manga.id]
+
+                if (estoqueDisponivel == null) {
+                    _checkoutState.value = CheckoutState.Erro(
+                        "${item.manga.nome} não está mais disponível."
+                    )
+                    return@launch
+                }
+
+                if (estoqueDisponivel < item.quantidade) {
+                    _checkoutState.value = CheckoutState.Erro(
+                        "Estoque insuficiente para ${item.manga.nome}. Disponível: $estoqueDisponivel unidade(s)."
+                    )
+                    return@launch
+                }
+            }
+
+            // 3. Estoque validado: seguir com o fluxo normal de criação do pedido.
             val subtotalAtual = itensAtuais.sumOf { it.subtotal }
             val cupomAtual = _cupomAplicado.value
             val descontoAtual = cupomAtual?.calcularDesconto(subtotalAtual) ?: 0.0
@@ -291,6 +322,16 @@ class CartViewModel : ViewModel() {
             val resultado = orderRepository.salvarPedido(pedido)
             resultado.fold(
                 onSuccess = { pedidoId ->
+                    // 4. Pedido salvo com sucesso: descontar a quantidade comprada do estoque de cada produto.
+                    for (item in itensAtuais) {
+                        val estoqueAntesDaCompra = estoqueAtualMap[item.manga.id] ?: continue
+                        mangaRepository.descontarEstoque(
+                            produtoId = item.manga.id,
+                            quantidadeComprada = item.quantidade,
+                            estoqueAtual = estoqueAntesDaCompra
+                        )
+                    }
+
                     _checkoutState.value = CheckoutState.Sucesso(pedidoId)
                     limparCarrinho()
                     _cep.value = ""
