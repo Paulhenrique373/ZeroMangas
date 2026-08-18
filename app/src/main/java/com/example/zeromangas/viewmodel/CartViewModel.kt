@@ -10,6 +10,7 @@ import com.example.zeromangas.data.repository.ViaCepRepository
 import com.example.zeromangas.repository.CupomRepository
 import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.repository.OrderRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -204,14 +205,22 @@ class CartViewModel : ViewModel() {
     }
 
     /**
-     * Valida o código digitado contra a coleção "cupons" do Firestore e,
-     * se válido, aplica o desconto sobre o subtotal atual do carrinho.
+     * Valida o código digitado contra a tabela "cupons" e, se válido, verifica:
+     * - se o subtotal atinge o valor mínimo exigido;
+     * - se este usuário já usou o cupom antes (limite de 1 uso por usuário);
+     * - se o cupom já atingiu seu limite total de usos (0 = sem limite).
+     * Só aplica o desconto se passar em todas as validações.
      */
-    fun aplicarCupom() {
+    fun aplicarCupom(userId: String) {
         val codigo = _cupomInput.value.trim()
 
         if (codigo.isBlank()) {
             _cupomErro.value = "Informe um código de cupom."
+            return
+        }
+
+        if (userId.isBlank()) {
+            _cupomErro.value = "Não foi possível validar o cupom. Tente novamente."
             return
         }
 
@@ -226,10 +235,44 @@ class CartViewModel : ViewModel() {
                     if (subtotalAtual < cupom.valorMinimo) {
                         _cupomErro.value = "Este cupom exige compra mínima de R$ ${"%.2f".format(cupom.valorMinimo)}."
                         _cupomAplicado.value = null
-                    } else {
-                        _cupomAplicado.value = cupom
-                        _cupomErro.value = null
+                        _validandoCupom.value = false
+                        return@launch
                     }
+
+                    // Limite de 1 uso por usuário: verifica se este usuário já usou este cupom antes.
+                    val usosPorUsuarioResult = cupomRepository.contarUsosPorUsuario(cupom.codigo, userId)
+                    val usosPorUsuario = usosPorUsuarioResult.getOrElse {
+                        _cupomErro.value = "Não foi possível validar o cupom. Tente novamente."
+                        _cupomAplicado.value = null
+                        _validandoCupom.value = false
+                        return@launch
+                    }
+                    if (usosPorUsuario > 0) {
+                        _cupomErro.value = "Você já utilizou este cupom anteriormente."
+                        _cupomAplicado.value = null
+                        _validandoCupom.value = false
+                        return@launch
+                    }
+
+                    // Limite total de usos do cupom (0 = sem limite).
+                    if (cupom.limiteTotal > 0) {
+                        val usosTotaisResult = cupomRepository.contarUsosTotais(cupom.codigo)
+                        val usosTotais = usosTotaisResult.getOrElse {
+                            _cupomErro.value = "Não foi possível validar o cupom. Tente novamente."
+                            _cupomAplicado.value = null
+                            _validandoCupom.value = false
+                            return@launch
+                        }
+                        if (usosTotais >= cupom.limiteTotal) {
+                            _cupomErro.value = "Este cupom atingiu o limite de usos."
+                            _cupomAplicado.value = null
+                            _validandoCupom.value = false
+                            return@launch
+                        }
+                    }
+
+                    _cupomAplicado.value = cupom
+                    _cupomErro.value = null
                 },
                 onFailure = { erro ->
                     _cupomAplicado.value = null
@@ -250,7 +293,12 @@ class CartViewModel : ViewModel() {
         _checkoutState.value = CheckoutState.Idle
     }
 
-    fun finalizarCompra(userId: String) {
+    /**
+     * Finaliza a compra em duas etapas:
+     * 1. Simula o processamento do pagamento (com chance de recusa, como um gateway real).
+     * 2. Só se o pagamento for aprovado, valida estoque e cria o pedido (fluxo já existente).
+     */
+    fun finalizarCompra(userId: String, metodoPagamento: String) {
         val itensAtuais = _itens.value
 
         if (itensAtuais.isEmpty()) {
@@ -272,7 +320,20 @@ class CartViewModel : ViewModel() {
         _checkoutState.value = CheckoutState.Carregando
 
         viewModelScope.launch {
-            // 1. Buscar o estoque real e atualizado do banco para todos os produtos do carrinho.
+            // 1. Simulação do pagamento: um pequeno delay (como um gateway real processando)
+            // e uma chance de recusa aleatória. Se recusado, a compra para aqui: nenhum
+            // pedido é criado e nenhum estoque é descontado.
+            delay(1500)
+            val pagamentoAprovado = Math.random() > 0.2 // ~80% de chance de aprovação
+
+            if (!pagamentoAprovado) {
+                _checkoutState.value = CheckoutState.Erro(
+                    "Pagamento via $metodoPagamento recusado. Verifique os dados e tente novamente."
+                )
+                return@launch
+            }
+
+            // 2. Pagamento aprovado: seguir com a validação de estoque real do banco.
             val produtoIds = itensAtuais.map { it.manga.id }
             val resultadoEstoque = mangaRepository.buscarEstoqueAtual(produtoIds)
 
@@ -281,7 +342,6 @@ class CartViewModel : ViewModel() {
                 return@launch
             }
 
-            // 2. Validar cada item do carrinho contra o estoque real.
             for (item in itensAtuais) {
                 val estoqueDisponivel = estoqueAtualMap[item.manga.id]
 
@@ -322,14 +382,24 @@ class CartViewModel : ViewModel() {
             val resultado = orderRepository.salvarPedido(pedido)
             resultado.fold(
                 onSuccess = { pedidoId ->
-                    // 4. Pedido salvo com sucesso: descontar a quantidade comprada do estoque de cada produto.
+                    // 4. Pedido salvo com sucesso: descontar a quantidade comprada do estoque de
+                    // cada produto, de forma atômica via RPC no banco. Como o pedido já foi criado
+                    // neste ponto, uma falha aqui (ex: estoque esgotou entre a validação do passo 2
+                    // e agora) não desfaz o pedido — apenas registramos um aviso.
+                    val itensComFalhaDeEstoque = mutableListOf<String>()
                     for (item in itensAtuais) {
-                        val estoqueAntesDaCompra = estoqueAtualMap[item.manga.id] ?: continue
-                        mangaRepository.descontarEstoque(
+                        val resultadoDesconto = mangaRepository.descontarEstoque(
                             produtoId = item.manga.id,
-                            quantidadeComprada = item.quantidade,
-                            estoqueAtual = estoqueAntesDaCompra
+                            quantidadeComprada = item.quantidade
                         )
+                        if (resultadoDesconto.isFailure) {
+                            itensComFalhaDeEstoque.add(item.manga.nome)
+                        }
+                    }
+
+                    if (itensComFalhaDeEstoque.isNotEmpty()) {
+                        _avisoEstoque.value = "Atenção: o estoque de ${itensComFalhaDeEstoque.joinToString(", ")} " +
+                                "não pôde ser atualizado corretamente. Verifique manualmente."
                     }
 
                     _checkoutState.value = CheckoutState.Sucesso(pedidoId)

@@ -59,6 +59,7 @@ fun CartScreen(
     val total = subtotal + (frete ?: 0.0) - desconto
 
     var mostrarResumo by remember { mutableStateOf(false) }
+    var mostrarPagamento by remember { mutableStateOf(false) }
 
     LaunchedEffect(avisoEstoque) {
         if (avisoEstoque != null) {
@@ -162,7 +163,7 @@ fun CartScreen(
                         cupomErro = cupomErro,
                         validando = validandoCupom,
                         onCupomInputChange = { cartViewModel.atualizarCupomInput(it) },
-                        onAplicarCupom = { cartViewModel.aplicarCupom() },
+                        onAplicarCupom = { cartViewModel.aplicarCupom(usuarioId) },
                         onRemoverCupom = { cartViewModel.removerCupom() }
                     )
                 }
@@ -265,13 +266,68 @@ fun CartScreen(
             confirmButton = {
                 TextButton(onClick = {
                     mostrarResumo = false
-                    cartViewModel.finalizarCompra(usuarioId)
+                    mostrarPagamento = true
                 }) {
                     Text("Confirmar compra")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { mostrarResumo = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (mostrarPagamento) {
+        AlertDialog(
+            onDismissRequest = { mostrarPagamento = false },
+            title = { Text("Forma de pagamento") },
+            text = {
+                Column {
+                    Text(
+                        text = "Escolha como deseja pagar R$ ${"%.2f".format(total)}:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            mostrarPagamento = false
+                            cartViewModel.finalizarCompra(usuarioId, "Cartão de Crédito")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cartão de Crédito")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            mostrarPagamento = false
+                            cartViewModel.finalizarCompra(usuarioId, "Pix")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Pix")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            mostrarPagamento = false
+                            cartViewModel.finalizarCompra(usuarioId, "Boleto")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Boleto")
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { mostrarPagamento = false }) {
                     Text("Cancelar")
                 }
             }

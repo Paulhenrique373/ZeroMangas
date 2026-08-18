@@ -8,15 +8,12 @@ import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 @Serializable
 private data class EstoqueDto(
     val id: String,
-    val estoque: Int
-)
-
-@Serializable
-private data class EstoqueUpdateDto(
     val estoque: Int
 )
 
@@ -101,27 +98,34 @@ class MangaRepository {
 
     /**
      * Desconta a quantidade comprada do estoque de um produto após a compra ser confirmada.
-     * O filtro por "estoque = estoqueAtual" evita que duas compras simultâneas
-     * descontem o mesmo estoque duas vezes (proteção básica contra condição de corrida).
+     * Chama a função "descontar_estoque" no banco (RPC), que faz a checagem e o desconto
+     * numa única operação atômica: só desconta se ainda houver estoque suficiente naquele
+     * instante, eliminando a janela de tempo entre "ler o estoque" e "gravar o desconto"
+     * (o que antes permitia duas compras simultâneas descontarem o mesmo item indevidamente).
+     * Retorna o estoque restante em caso de sucesso, ou falha com "ESTOQUE_INSUFICIENTE"
+     * se o estoque tiver acabado entre a validação e este momento.
      */
     suspend fun descontarEstoque(
         produtoId: String,
-        quantidadeComprada: Int,
-        estoqueAtual: Int
-    ): Result<Unit> {
+        quantidadeComprada: Int
+    ): Result<Int> {
         return try {
-            val novoEstoque = (estoqueAtual - quantidadeComprada).coerceAtLeast(0)
-
-            produtosTable.update(EstoqueUpdateDto(estoque = novoEstoque)) {
-                filter {
-                    eq("id", produtoId)
-                    eq("estoque", estoqueAtual)
-                }
+            val parametros = buildJsonObject {
+                put("p_produto_id", produtoId)
+                put("p_quantidade", quantidadeComprada)
             }
 
-            Result.success(Unit)
+            val estoqueRestante = SupabaseClient.client.postgrest
+                .rpc("descontar_estoque", parametros)
+                .decodeAs<Int>()
+
+            Result.success(estoqueRestante)
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e.message?.contains("ESTOQUE_INSUFICIENTE") == true) {
+                Result.failure(Exception("ESTOQUE_INSUFICIENTE"))
+            } else {
+                Result.failure(e)
+            }
         }
     }
 }

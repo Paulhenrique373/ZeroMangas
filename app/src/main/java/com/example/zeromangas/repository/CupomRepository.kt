@@ -3,6 +3,7 @@ package com.example.zeromangas.repository
 import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -13,20 +14,28 @@ private data class CupomDto(
     @SerialName("tipo_desconto") val tipoDesconto: String = "PERCENTUAL",
     val valor: Double = 0.0,
     val ativo: Boolean = true,
-    @SerialName("valor_minimo") val valorMinimo: Double = 0.0
+    @SerialName("valor_minimo") val valorMinimo: Double = 0.0,
+    @SerialName("limite_total") val limiteTotal: Int = 0
 ) {
     fun paraCupom() = Cupom(
         codigo = codigo,
         tipoDesconto = tipoDesconto,
         valor = valor,
         ativo = ativo,
-        valorMinimo = valorMinimo
+        valorMinimo = valorMinimo,
+        limiteTotal = limiteTotal
     )
 }
+
+@Serializable
+private data class PedidoUsoDto(
+    val id: String? = null
+)
 
 class CupomRepository {
 
     private val cuponsTable = SupabaseClient.client.postgrest.from("cupons")
+    private val pedidosTable = SupabaseClient.client.postgrest.from("pedidos")
 
     /**
      * Busca um cupom pelo código (sem diferenciar maiúsculas/minúsculas) na tabela "cupons".
@@ -53,6 +62,47 @@ class CupomRepository {
             }
         } catch (e: Exception) {
             Result.failure(Exception("Não foi possível validar o cupom. Tente novamente."))
+        }
+    }
+
+    /**
+     * Conta quantas vezes um cupom já foi utilizado no total, em todos os pedidos,
+     * consultando a coluna "cupom_codigo" da tabela "pedidos".
+     */
+    suspend fun contarUsosTotais(codigo: String): Result<Int> {
+        return try {
+            val lista = pedidosTable
+                .select(columns = Columns.list("id")) {
+                    filter {
+                        eq("cupom_codigo", codigo)
+                    }
+                }
+                .decodeList<PedidoUsoDto>()
+
+            Result.success(lista.size)
+        } catch (e: Exception) {
+            Result.failure(Exception("Não foi possível verificar o uso total do cupom."))
+        }
+    }
+
+    /**
+     * Conta quantas vezes um usuário específico já utilizou este cupom,
+     * consultando "cupom_codigo" e "user_id" na tabela "pedidos".
+     */
+    suspend fun contarUsosPorUsuario(codigo: String, userId: String): Result<Int> {
+        return try {
+            val lista = pedidosTable
+                .select(columns = Columns.list("id")) {
+                    filter {
+                        eq("cupom_codigo", codigo)
+                        eq("user_id", userId)
+                    }
+                }
+                .decodeList<PedidoUsoDto>()
+
+            Result.success(lista.size)
+        } catch (e: Exception) {
+            Result.failure(Exception("Não foi possível verificar o uso do cupom para este usuário."))
         }
     }
 }
