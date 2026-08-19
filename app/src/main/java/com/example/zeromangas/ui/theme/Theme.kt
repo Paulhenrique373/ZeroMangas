@@ -39,6 +39,7 @@ fun ZeroMangasTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = ZeroMangasShapes,
         content = content
     )
 }
