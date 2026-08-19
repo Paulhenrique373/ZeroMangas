@@ -297,6 +297,10 @@ class CartViewModel : ViewModel() {
      * Finaliza a compra em duas etapas:
      * 1. Simula o processamento do pagamento (com chance de recusa, como um gateway real).
      * 2. Só se o pagamento for aprovado, valida estoque e cria o pedido (fluxo já existente).
+     *
+     * O desconto de estoque acontece DENTRO da RPC "criar_pedido" (transação atômica no
+     * banco), então não fazemos mais nenhum ajuste manual de estoque aqui depois de salvar
+     * o pedido — isso evitaria contar o mesmo desconto duas vezes.
      */
     fun finalizarCompra(userId: String, metodoPagamento: String) {
         val itensAtuais = _itens.value
@@ -334,6 +338,9 @@ class CartViewModel : ViewModel() {
             }
 
             // 2. Pagamento aprovado: seguir com a validação de estoque real do banco.
+            // Isso é só uma checagem antecipada pra dar feedback rápido ao usuário;
+            // a validação definitiva (que impede corrida entre dois pedidos simultâneos)
+            // acontece dentro da RPC "criar_pedido", com "select ... for update".
             val produtoIds = itensAtuais.map { it.manga.id }
             val resultadoEstoque = mangaRepository.buscarEstoqueAtual(produtoIds)
 
@@ -379,29 +386,12 @@ class CartViewModel : ViewModel() {
                 status = "PROCESSANDO"
             )
 
+            // 4. Salva o pedido chamando a RPC "criar_pedido": ela insere o pedido, os itens
+            // E desconta o estoque de cada produto, tudo numa transação só. Não há mais
+            // nenhuma chamada manual a "descontarEstoque" depois disso.
             val resultado = orderRepository.salvarPedido(pedido)
             resultado.fold(
                 onSuccess = { pedidoId ->
-                    // 4. Pedido salvo com sucesso: descontar a quantidade comprada do estoque de
-                    // cada produto, de forma atômica via RPC no banco. Como o pedido já foi criado
-                    // neste ponto, uma falha aqui (ex: estoque esgotou entre a validação do passo 2
-                    // e agora) não desfaz o pedido — apenas registramos um aviso.
-                    val itensComFalhaDeEstoque = mutableListOf<String>()
-                    for (item in itensAtuais) {
-                        val resultadoDesconto = mangaRepository.descontarEstoque(
-                            produtoId = item.manga.id,
-                            quantidadeComprada = item.quantidade
-                        )
-                        if (resultadoDesconto.isFailure) {
-                            itensComFalhaDeEstoque.add(item.manga.nome)
-                        }
-                    }
-
-                    if (itensComFalhaDeEstoque.isNotEmpty()) {
-                        _avisoEstoque.value = "Atenção: o estoque de ${itensComFalhaDeEstoque.joinToString(", ")} " +
-                                "não pôde ser atualizado corretamente. Verifique manualmente."
-                    }
-
                     _checkoutState.value = CheckoutState.Sucesso(pedidoId)
                     limparCarrinho()
                     _cep.value = ""
@@ -409,8 +399,10 @@ class CartViewModel : ViewModel() {
                     _cidadeUf.value = null
                     removerCupom()
                 },
-                onFailure = {
-                    _checkoutState.value = CheckoutState.Erro("Não foi possível finalizar a compra. Tente novamente.")
+                onFailure = { erro ->
+                    _checkoutState.value = CheckoutState.Erro(
+                        erro.message ?: "Não foi possível finalizar a compra. Tente novamente."
+                    )
                 }
             )
         }

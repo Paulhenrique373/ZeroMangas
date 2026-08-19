@@ -61,13 +61,15 @@ class CupomRepository {
                 else -> Result.success(cupomDto.paraCupom())
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Não foi possível validar o cupom. Tente novamente."))
+            Result.failure(Exception(e.message ?: "Não foi possível validar o cupom. Tente novamente.", e))
         }
     }
 
     /**
      * Conta quantas vezes um cupom já foi utilizado no total, em todos os pedidos,
      * consultando a coluna "cupom_codigo" da tabela "pedidos".
+     * Pedidos CANCELADOS não contam como uso, já que o cancelamento devolve
+     * estoque e desfaz o pedido — o cupom deve ficar disponível de novo.
      */
     suspend fun contarUsosTotais(codigo: String): Result<Int> {
         return try {
@@ -75,19 +77,21 @@ class CupomRepository {
                 .select(columns = Columns.list("id")) {
                     filter {
                         eq("cupom_codigo", codigo)
+                        neq("status", "CANCELADO")
                     }
                 }
                 .decodeList<PedidoUsoDto>()
 
             Result.success(lista.size)
         } catch (e: Exception) {
-            Result.failure(Exception("Não foi possível verificar o uso total do cupom."))
+            Result.failure(Exception(e.message ?: "Não foi possível verificar o uso total do cupom.", e))
         }
     }
 
     /**
      * Conta quantas vezes um usuário específico já utilizou este cupom,
      * consultando "cupom_codigo" e "user_id" na tabela "pedidos".
+     * Pedidos CANCELADOS não contam como uso (mesmo motivo do método acima).
      */
     suspend fun contarUsosPorUsuario(codigo: String, userId: String): Result<Int> {
         return try {
@@ -96,13 +100,14 @@ class CupomRepository {
                     filter {
                         eq("cupom_codigo", codigo)
                         eq("user_id", userId)
+                        neq("status", "CANCELADO")
                     }
                 }
                 .decodeList<PedidoUsoDto>()
 
             Result.success(lista.size)
         } catch (e: Exception) {
-            Result.failure(Exception("Não foi possível verificar o uso do cupom para este usuário."))
+            Result.failure(Exception(e.message ?: "Não foi possível verificar o uso do cupom para este usuário.", e))
         }
     }
 }

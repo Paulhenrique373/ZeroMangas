@@ -8,6 +8,9 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -36,14 +39,6 @@ private data class PedidoDto(
 )
 
 @Serializable
-private data class PedidoItemInsertDto(
-    @SerialName("pedido_id") val pedidoId: String,
-    @SerialName("produto_id") val produtoId: String,
-    val quantidade: Int,
-    @SerialName("preco_unitario") val precoUnitario: Double
-)
-
-@Serializable
 private data class PedidoItemDto(
     @SerialName("produto_id") val produtoId: String,
     val quantidade: Int,
@@ -51,8 +46,40 @@ private data class PedidoItemDto(
     val produtos: ProdutoResumoDto? = null
 )
 
+// ---- DTOs para a RPC criar_pedido ----
+
 @Serializable
-private data class StatusUpdateDto(val status: String)
+private data class CriarPedidoItemDto(
+    @SerialName("produto_id") val produtoId: String,
+    val quantidade: Int,
+    @SerialName("preco_unitario") val precoUnitario: Double
+)
+
+@Serializable
+private data class CriarPedidoParamsDto(
+    @SerialName("p_user_id") val userId: String,
+    @SerialName("p_valor_produtos") val valorProdutos: Double,
+    @SerialName("p_valor_frete") val valorFrete: Double,
+    @SerialName("p_valor_desconto") val valorDesconto: Double,
+    @SerialName("p_valor_total") val valorTotal: Double,
+    @SerialName("p_tipo_frete") val tipoFrete: String,
+    @SerialName("p_cep") val cep: String,
+    @SerialName("p_cupom_codigo") val cupomCodigo: String = "",
+    @SerialName("p_itens") val itens: List<CriarPedidoItemDto>
+)
+
+// ---- DTO para a RPC cancelar_pedido ----
+
+@Serializable
+private data class CancelarPedidoParamsDto(
+    @SerialName("p_pedido_id") val pedidoId: String
+)
+
+// Instância de Json configurada para SEMPRE incluir todos os campos ao serializar,
+// mesmo os que têm valor igual ao padrão (ex: cupomCodigo = ""). Por padrão o
+// kotlinx.serialization omite campos "no padrão", o que fazia a RPC do Postgres
+// não encontrar a função por faltar o parâmetro p_cupom_codigo na chamada.
+private val jsonRpc = Json { encodeDefaults = true }
 
 class OrderRepository {
 
@@ -60,12 +87,19 @@ class OrderRepository {
     private val itensTable = SupabaseClient.client.postgrest.from("pedido_itens")
 
     /**
-     * Salva o pedido na tabela "pedidos" e, em seguida, cada item do carrinho
-     * como uma linha separada em "pedido_itens" ligada ao pedido criado.
+     * Cria o pedido chamando a RPC "criar_pedido" no Supabase.
+     * A função no banco insere o pedido, os itens e desconta o estoque
+     * dentro de UMA transação só: se qualquer etapa falhar (ex: estoque
+     * insuficiente, item inválido), tudo é revertido automaticamente e
+     * nenhum pedido "fantasma" fica salvo.
      */
     suspend fun salvarPedido(order: Order): Result<String> {
         return try {
-            val pedidoDto = PedidoDto(
+            if (order.itens.isEmpty()) {
+                return Result.failure(Exception("O pedido não possui itens."))
+            }
+
+            val params = CriarPedidoParamsDto(
                 userId = order.userId,
                 valorProdutos = order.valorProdutos,
                 valorFrete = order.valorFrete,
@@ -73,33 +107,30 @@ class OrderRepository {
                 valorTotal = order.valorTotal,
                 tipoFrete = order.tipoFrete,
                 cep = order.cep,
-                cupomCodigo = order.cupomCodigo.ifBlank { null },
-                data = millisParaIso(order.data),
-                status = order.status
-            )
-
-            val pedidoCriado = pedidosTable.insert(pedidoDto) {
-                select()
-            }.decodeSingle<PedidoDto>()
-
-            val pedidoId = pedidoCriado.id
-                ?: return Result.failure(Exception("Não foi possível obter o id do pedido criado."))
-
-            if (order.itens.isNotEmpty()) {
-                val itensDto = order.itens.map { item ->
-                    PedidoItemInsertDto(
-                        pedidoId = pedidoId,
+                cupomCodigo = order.cupomCodigo, // pode ser "" — a coluna cupom_codigo é NOT NULL no banco
+                itens = order.itens.map { item ->
+                    CriarPedidoItemDto(
                         produtoId = item.manga.id,
                         quantidade = item.quantidade,
                         precoUnitario = item.manga.preco
                     )
                 }
-                itensTable.insert(itensDto)
-            }
+            )
+
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                CriarPedidoParamsDto.serializer(),
+                params
+            ).jsonObject
+
+            val resultado = SupabaseClient.client.postgrest.rpc("criar_pedido", paramsJson)
+
+            // A RPC retorna o uuid do pedido criado como uma string JSON simples
+            // (ex: "\"3f2a...\""), então removemos as aspas antes de usar o valor.
+            val pedidoId = jsonRpc.parseToJsonElement(resultado.data).jsonPrimitive.content
 
             Result.success(pedidoId)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.message ?: "Não foi possível finalizar a compra.", e))
         }
     }
 
@@ -150,22 +181,27 @@ class OrderRepository {
 
             Result.success(pedidos)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.message ?: "Não foi possível carregar os pedidos.", e))
         }
     }
 
     /**
-     * Cancela um pedido, alterando o campo "status" para "CANCELADO".
-     * A tela deve permitir isso apenas enquanto o pedido ainda está "Processando".
+     * Cancela um pedido chamando a RPC "cancelar_pedido" no Supabase.
+     * A função no banco muda o status para "CANCELADO" E devolve o
+     * estoque de cada item do pedido, numa transação só.
+     * A tela deve permitir isso apenas enquanto o pedido ainda está "PROCESSANDO".
      */
     suspend fun cancelarPedido(pedidoId: String): Result<Unit> {
         return try {
-            pedidosTable.update(StatusUpdateDto(status = "CANCELADO")) {
-                filter { eq("id", pedidoId) }
-            }
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                CancelarPedidoParamsDto.serializer(),
+                CancelarPedidoParamsDto(pedidoId = pedidoId)
+            ).jsonObject
+
+            SupabaseClient.client.postgrest.rpc("cancelar_pedido", paramsJson)
             Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.message ?: "Não foi possível cancelar o pedido.", e))
         }
     }
 
