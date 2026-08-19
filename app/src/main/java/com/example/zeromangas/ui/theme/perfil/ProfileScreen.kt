@@ -11,6 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +30,8 @@ import com.example.zeromangas.viewmodel.UploadFotoState
 @Composable
 fun ProfileScreen(
     authViewModel: AuthViewModel,
-    onVoltar: () -> Unit
+    onVoltar: () -> Unit,
+    onPedidosClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val usuario by authViewModel.usuarioAtual.collectAsState()
@@ -232,6 +235,35 @@ fun ProfileScreen(
                 } else {
                     Text("Salvar alterações")
                 }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+            Divider(color = MaterialTheme.colorScheme.surface)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPedidosClick() }
+                    .padding(vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Receipt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Meus pedidos",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
