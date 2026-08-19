@@ -171,6 +171,7 @@ fun NavGraph() {
                 val mangaId = backStackEntry.arguments?.getString("mangaId") ?: ""
 
                 var manga by remember { mutableStateOf<Manga?>(null) }
+                var recomendados by remember { mutableStateOf<List<Manga>>(emptyList()) }
                 var carregando by remember { mutableStateOf(true) }
                 var erro by remember { mutableStateOf<String?>(null) }
 
@@ -180,7 +181,14 @@ fun NavGraph() {
                     val resultado = mangaRepository.listarMangas()
                     resultado.fold(
                         onSuccess = { lista ->
-                            manga = lista.find { it.id == mangaId }
+                            val encontrado = lista.find { it.id == mangaId }
+                            manga = encontrado
+                            recomendados = if (encontrado != null) {
+                                lista.filter { it.categoria == encontrado.categoria && it.id != encontrado.id }
+                                    .take(10)
+                            } else {
+                                emptyList()
+                            }
                         },
                         onFailure = {
                             erro = "Não foi possível carregar o mangá."
@@ -203,10 +211,16 @@ fun NavGraph() {
                     else -> {
                         DetalhesScreen(
                             manga = manga,
+                            recomendados = recomendados,
+                            favoritoViewModel = favoritoViewModel,
+                            usuarioId = authRepository.currentUser?.uid.orEmpty(),
                             onVoltar = { navController.popBackStack() },
                             onAdicionarAoCarrinho = { mangaSelecionado ->
                                 cartViewModel.adicionarItem(mangaSelecionado)
                                 navController.popBackStack()
+                            },
+                            onMangaClick = { mangaSelecionado ->
+                                navController.navigate(Tela.Detalhes.criarRota(mangaSelecionado.id))
                             }
                         )
                     }
