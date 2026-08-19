@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.Manga
-import com.example.zeromangas.ui.home.MangaCard
+import com.example.zeromangas.ui.components.MangaCardFavoritavel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 
 @Composable
@@ -69,7 +69,7 @@ fun FavoritosScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(mangasFavoritos, key = { it.id }) { manga ->
-                    MangaCard(
+                    MangaCardFavoritavel(
                         manga = manga,
                         onClick = { onMangaClick(manga) },
                         isFavorito = true,
