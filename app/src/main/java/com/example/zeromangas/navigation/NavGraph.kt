@@ -35,6 +35,7 @@ import com.example.zeromangas.ui.home.HomeScreen
 import com.example.zeromangas.ui.login.LoginScreen
 import com.example.zeromangas.ui.register.RegisterScreen
 import com.example.zeromangas.ui.theme.cart.CartScreen
+import com.example.zeromangas.ui.theme.checkout.CheckoutScreen
 import com.example.zeromangas.ui.theme.confirmacao.ConfirmacaoScreen
 import com.example.zeromangas.ui.theme.pedidos.PedidosScreen
 import com.example.zeromangas.ui.perfil.ProfileScreen
@@ -47,6 +48,7 @@ sealed class Tela(val rota: String) {
     object Cadastro : Tela("cadastro")
     object Home : Tela("home")
     object Carrinho : Tela("carrinho")
+    object Checkout : Tela("checkout")
     object Pedidos : Tela("pedidos")
     object Perfil : Tela("perfil")
     object Favoritos : Tela("favoritos")
@@ -232,6 +234,17 @@ fun NavGraph() {
                     cartViewModel = cartViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
                     onVoltar = { navController.popBackStack() },
+                    onIrParaCheckout = {
+                        navController.navigate(Tela.Checkout.rota)
+                    }
+                )
+            }
+
+            composable(Tela.Checkout.rota) {
+                CheckoutScreen(
+                    cartViewModel = cartViewModel,
+                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                    onVoltar = { navController.popBackStack() },
                     onCompraFinalizada = { pedidoId ->
                         navController.navigate(Tela.Confirmacao.criarRota(pedidoId)) {
                             popUpTo(Tela.Home.rota)
@@ -272,13 +285,23 @@ fun NavGraph() {
                 ProfileScreen(
                     authViewModel = authViewModel,
                     onVoltar = { navController.popBackStack() },
-                    onPedidosClick = { navController.navigate(Tela.Pedidos.rota) }
+                    onPedidosClick = { navController.navigate(Tela.Pedidos.rota) },
+                    onFavoritosClick = { navController.navigate(Tela.Favoritos.rota) },
+                    onLogoutClick = {
+                        authViewModel.logout()
+                        cartViewModel.limparCarrinho()
+                        favoritoViewModel.limparFavoritos()
+                        navController.navigate(Tela.Login.rota) {
+                            popUpTo(Tela.Home.rota) { inclusive = true }
+                        }
+                    }
                 )
             }
 
             composable(Tela.Favoritos.rota) {
                 FavoritosScreen(
                     favoritoViewModel = favoritoViewModel,
+                    cartViewModel = cartViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
                     onVoltar = { navController.popBackStack() },
                     onMangaClick = { manga ->

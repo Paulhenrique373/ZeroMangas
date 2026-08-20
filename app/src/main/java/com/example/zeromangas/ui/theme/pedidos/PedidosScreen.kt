@@ -4,18 +4,34 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.repository.OrderRepository
+import com.example.zeromangas.ui.components.EmptyState
+import com.example.zeromangas.ui.components.LoadingState
+import com.example.zeromangas.ui.components.formatarPrecoBr
+import com.example.zeromangas.ui.theme.AmareloDestaque
+import com.example.zeromangas.ui.theme.FundoCard
+import com.example.zeromangas.ui.theme.RoxoNeonClaro
+import com.example.zeromangas.ui.theme.Spacing
+import com.example.zeromangas.ui.theme.TextoPrincipal
+import com.example.zeromangas.ui.theme.TextoSecundario
+import com.example.zeromangas.ui.theme.VerdeSucesso
+import com.example.zeromangas.ui.theme.VermelhoErro
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -23,6 +39,12 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+/**
+ * Tela de histórico de pedidos. Toda a lógica é a mesma de antes — status calculado
+ * pelo tempo decorrido (Processando -> Enviado -> Entregue), cancelamento via
+ * [OrderRepository] — só o visual passou a usar o design system (FundoCard, EmptyState,
+ * LoadingState, capa do mangá, badges de status coloridos).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PedidosScreen(
@@ -83,16 +105,17 @@ fun PedidosScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onVoltar) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
             }
             Text(
                 text = "Meus Pedidos",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 8.dp)
+                color = TextoPrincipal,
+                modifier = Modifier.padding(start = Spacing.sm)
             )
         }
 
@@ -100,10 +123,10 @@ fun PedidosScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .padding(horizontal = Spacing.lg)
+                    .clip(RoundedCornerShape(Spacing.radiusSmall))
                     .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(12.dp)
+                    .padding(Spacing.md)
             ) {
                 Text(
                     text = erroCancelamento ?: "",
@@ -111,39 +134,32 @@ fun PedidosScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
         when {
             carregando -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                LoadingState()
             }
             erro != null -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(erro ?: "", color = MaterialTheme.colorScheme.error)
-                }
+                EmptyState(
+                    titulo = erro ?: "Não foi possível carregar seus pedidos.",
+                    icone = Icons.Outlined.Inventory2
+                )
             }
             pedidos.isEmpty() -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Você ainda não fez nenhum pedido.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyState(
+                    titulo = "Você ainda não fez nenhum pedido",
+                    subtitulo = "Seus pedidos aparecerão aqui depois da primeira compra.",
+                    icone = Icons.Outlined.Inventory2
+                )
             }
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
                 ) {
                     items(pedidos, key = { it.id }) { pedido ->
                         PedidoCard(
@@ -153,7 +169,7 @@ fun PedidosScreen(
                             onCancelar = { cancelarPedido(pedido) }
                         )
                     }
-                    item { Spacer(modifier = Modifier.height(20.dp)) }
+                    item { Spacer(modifier = Modifier.height(Spacing.lg)) }
                 }
             }
         }
@@ -180,10 +196,32 @@ private fun calcularStatusPedido(pedido: Order, agora: Long): String {
 @Composable
 private fun corDoStatus(status: String): Color {
     return when (status) {
-        "Processando" -> MaterialTheme.colorScheme.tertiary
-        "Enviado" -> MaterialTheme.colorScheme.secondary
-        "Cancelado" -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.primary
+        "Processando" -> AmareloDestaque
+        "Enviado" -> RoxoNeonClaro
+        "Cancelado" -> VermelhoErro
+        else -> VerdeSucesso // Entregue
+    }
+}
+
+/** Badge "● Status" com uma bolinha colorida, no padrão pedido no planejamento (🟡 Preparando). */
+@Composable
+private fun StatusBadge(status: String) {
+    val cor = corDoStatus(status)
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(Spacing.radiusPill))
+            .background(cor.copy(alpha = 0.15f))
+            .padding(horizontal = Spacing.sm, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(cor)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text = status, style = MaterialTheme.typography.labelSmall, color = cor, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -197,15 +235,17 @@ fun PedidoCard(
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
     val statusAtual = remember(pedido.data, pedido.status, agora) { calcularStatusPedido(pedido, agora) }
     val podeCancelar = statusAtual == "Processando"
+    val primeiroItem = pedido.itens.firstOrNull()
+    val itensRestantes = pedido.itens.size - 1
 
     var mostrarConfirmacao by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp)
+            .clip(RoundedCornerShape(Spacing.radiusMedium))
+            .background(FundoCard)
+            .padding(Spacing.md)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -215,76 +255,87 @@ fun PedidoCard(
             Text(
                 text = "Pedido #${pedido.id.takeLast(6).uppercase()}",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
+                color = RoxoNeonClaro
             )
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(corDoStatus(statusAtual))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(statusAtual, style = MaterialTheme.typography.labelSmall)
-            }
+            StatusBadge(statusAtual)
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
         Text(
             text = formatador.format(Date(pedido.data)),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = TextoSecundario
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(Spacing.md))
 
-        pedido.itens.forEach { item ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${item.quantidade}x ${item.manga.nome}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "R$ ${"%.2f".format(item.subtotal)}",
-                    style = MaterialTheme.typography.bodySmall
-                )
+        if (primeiroItem != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(Spacing.radiusSmall))
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    AsyncImage(
+                        model = primeiroItem.manga.imagemUrl,
+                        contentDescription = primeiroItem.manga.nome,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.md))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = primeiroItem.manga.nome,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextoPrincipal,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = if (itensRestantes > 0) {
+                            "Vol. ${primeiroItem.manga.volume} · +$itensRestantes item(ns)"
+                        } else {
+                            "Vol. ${primeiroItem.manga.volume} · ${primeiroItem.quantidade}x"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextoSecundario
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(4.dp))
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Total", style = MaterialTheme.typography.titleSmall)
+            Text("Total", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
             Text(
-                text = "R$ ${"%.2f".format(pedido.valorTotal)}",
+                text = formatarPrecoBr(pedido.valorTotal),
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
+                color = RoxoNeonClaro
             )
         }
 
         if (podeCancelar) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
             OutlinedButton(
                 onClick = { mostrarConfirmacao = true },
                 enabled = !cancelando,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                shape = RoundedCornerShape(Spacing.radiusSmall),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (cancelando) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.error
+                        color = VermelhoErro
                     )
                 } else {
                     Text("Cancelar pedido")
@@ -303,7 +354,7 @@ fun PedidoCard(
                     mostrarConfirmacao = false
                     onCancelar()
                 }) {
-                    Text("Sim, cancelar", color = MaterialTheme.colorScheme.error)
+                    Text("Sim, cancelar", color = VermelhoErro)
                 }
             },
             dismissButton = {

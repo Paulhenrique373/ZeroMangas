@@ -37,7 +37,6 @@ import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.PriceText
 import com.example.zeromangas.ui.components.PrimaryButton
-import com.example.zeromangas.ui.components.SecondaryButton
 import com.example.zeromangas.ui.components.formatarPrecoBr
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.RoxoNeonClaro
@@ -45,12 +44,12 @@ import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.viewmodel.CartViewModel
-import com.example.zeromangas.viewmodel.CheckoutState
 
 /**
- * Tela do carrinho. A lógica (quantidade, frete via ViaCEP, cupom, checkout em duas
- * etapas) é 100% a mesma do [CartViewModel] já existente — só o visual muda, agora
- * usando os componentes do design system (PriceText, PrimaryButton, EmptyState).
+ * Tela do carrinho. A lógica (quantidade, frete via ViaCEP, cupom) é 100% a mesma do
+ * [CartViewModel] já existente — só o visual muda, agora usando os componentes do
+ * design system (PriceText, PrimaryButton, EmptyState). O checkout (endereço/pagamento)
+ * agora é uma tela separada, a CheckoutScreen — "Finalizar Compra" só navega até ela.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +57,7 @@ fun CartScreen(
     cartViewModel: CartViewModel,
     usuarioId: String,
     onVoltar: () -> Unit,
-    onCompraFinalizada: (String) -> Unit
+    onIrParaCheckout: () -> Unit
 ) {
     val itens by cartViewModel.itens.collectAsState()
     val cep by cartViewModel.cep.collectAsState()
@@ -66,7 +65,6 @@ fun CartScreen(
     val frete by cartViewModel.frete.collectAsState()
     val calculandoFrete by cartViewModel.calculandoFrete.collectAsState()
     val cidadeUf by cartViewModel.cidadeUf.collectAsState()
-    val checkoutState by cartViewModel.checkoutState.collectAsState()
     val avisoEstoque by cartViewModel.avisoEstoque.collectAsState()
     val cupomInput by cartViewModel.cupomInput.collectAsState()
     val cupomAplicado by cartViewModel.cupomAplicado.collectAsState()
@@ -77,22 +75,10 @@ fun CartScreen(
     val subtotal = itens.sumOf { it.subtotal }
     val total = subtotal + (frete ?: 0.0) - desconto
 
-    var mostrarResumo by remember { mutableStateOf(false) }
-    var mostrarPagamento by remember { mutableStateOf(false) }
-
     LaunchedEffect(avisoEstoque) {
         if (avisoEstoque != null) {
             delay(3000)
             cartViewModel.limparAvisoEstoque()
-        }
-    }
-
-    LaunchedEffect(checkoutState) {
-        val estado = checkoutState
-        if (estado is CheckoutState.Sucesso) {
-            val pedidoId = estado.pedidoId
-            cartViewModel.resetarCheckout()
-            onCompraFinalizada(pedidoId)
         }
     }
 
@@ -209,132 +195,15 @@ fun CartScreen(
                     )
                 }
 
-                if (checkoutState is CheckoutState.Erro) {
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    Text(
-                        text = (checkoutState as CheckoutState.Erro).mensagem,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 PrimaryButton(
                     text = "Finalizar Compra",
-                    onClick = { mostrarResumo = true },
-                    enabled = checkoutState !is CheckoutState.Carregando,
-                    loading = checkoutState is CheckoutState.Carregando,
+                    onClick = onIrParaCheckout,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
-    }
-
-    if (mostrarResumo) {
-        AlertDialog(
-            onDismissRequest = { mostrarResumo = false },
-            title = { Text("Resumo da compra") },
-            text = {
-                Column {
-                    LinhaResumo(rotulo = "Itens", valor = null, textoAlternativo = "${itens.sumOf { it.quantidade }}")
-                    LinhaResumo(rotulo = "Subtotal", valor = subtotal)
-                    LinhaResumo(rotulo = "Frete", valor = frete)
-                    if (cupomAplicado != null) {
-                        LinhaResumo(
-                            rotulo = "Desconto (${cupomAplicado?.codigo})",
-                            valor = null,
-                            textoAlternativo = "- ${formatarPrecoBr(desconto)}"
-                        )
-                    }
-                    if (cep.isNotBlank()) {
-                        LinhaResumo(rotulo = "CEP", valor = null, textoAlternativo = cep)
-                    }
-                    if (cidadeUf != null) {
-                        LinhaResumo(rotulo = "Destino", valor = null, textoAlternativo = cidadeUf)
-                    }
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Total", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            text = formatarPrecoBr(total),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = RoxoNeonClaro
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    mostrarResumo = false
-                    mostrarPagamento = true
-                }) {
-                    Text("Confirmar compra")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarResumo = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
-
-    if (mostrarPagamento) {
-        AlertDialog(
-            onDismissRequest = { mostrarPagamento = false },
-            title = { Text("Forma de pagamento") },
-            text = {
-                Column {
-                    Text(
-                        text = "Escolha como deseja pagar ${formatarPrecoBr(total)}:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextoSecundario
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.md))
-
-                    SecondaryButton(
-                        text = "Cartão de Crédito",
-                        onClick = {
-                            mostrarPagamento = false
-                            cartViewModel.finalizarCompra(usuarioId, "Cartão de Crédito")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-
-                    SecondaryButton(
-                        text = "Pix",
-                        onClick = {
-                            mostrarPagamento = false
-                            cartViewModel.finalizarCompra(usuarioId, "Pix")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-
-                    SecondaryButton(
-                        text = "Boleto",
-                        onClick = {
-                            mostrarPagamento = false
-                            cartViewModel.finalizarCompra(usuarioId, "Boleto")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { mostrarPagamento = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
     }
 }
 

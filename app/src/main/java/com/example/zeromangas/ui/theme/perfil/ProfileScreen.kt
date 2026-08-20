@@ -6,32 +6,57 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.zeromangas.ui.components.PrimaryButton
+import com.example.zeromangas.ui.theme.FundoCard
+import com.example.zeromangas.ui.theme.RoxoNeon
+import com.example.zeromangas.ui.theme.RoxoNeonClaro
+import com.example.zeromangas.ui.theme.Spacing
+import com.example.zeromangas.ui.theme.TextoPrincipal
+import com.example.zeromangas.ui.theme.TextoSecundario
+import com.example.zeromangas.ui.theme.VerdeSucesso
+import com.example.zeromangas.ui.theme.VermelhoErro
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.ProfileState
 import com.example.zeromangas.viewmodel.UploadFotoState
 
+/**
+ * Tela de perfil. Toda a lógica (carregar usuário, editar nome, trocar foto via
+ * Supabase Storage) continua 100% no [AuthViewModel] já existente — só o visual muda,
+ * agora com o design system, e o menu ganhou atalhos reais para as telas que já existem
+ * (Pedidos, Favoritos, Sair). Não incluí "Endereços", "Cupons", "Configurações" ou
+ * "Notificações" do planejamento original porque essas telas ainda não existem no
+ * projeto — um atalho pra elas ficaria quebrado.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     authViewModel: AuthViewModel,
     onVoltar: () -> Unit,
-    onPedidosClick: () -> Unit = {}
+    onPedidosClick: () -> Unit = {},
+    onFavoritosClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val usuario by authViewModel.usuarioAtual.collectAsState()
@@ -71,28 +96,33 @@ fun ProfileScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onVoltar) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
             }
             Text(
                 text = "Meu Perfil",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 8.dp)
+                color = TextoPrincipal,
+                modifier = Modifier.padding(start = Spacing.sm)
             )
         }
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = Spacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
@@ -100,7 +130,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .size(120.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(FundoCard)
                     .clickable { seletorImagem.launch("image/*") },
                 contentAlignment = Alignment.Center
             ) {
@@ -118,7 +148,7 @@ fun ProfileScreen(
                         imageVector = Icons.Default.AccountCircle,
                         contentDescription = "Foto de perfil",
                         modifier = Modifier.size(100.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = TextoSecundario
                     )
                 }
 
@@ -126,12 +156,12 @@ fun ProfileScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)),
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(32.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = TextoPrincipal
                         )
                     }
                 } else {
@@ -140,37 +170,37 @@ fun ProfileScreen(
                             .align(Alignment.BottomEnd)
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(RoxoNeon),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
                             contentDescription = "Trocar foto",
                             modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = androidx.compose.ui.graphics.Color.White
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
             Text(
                 text = "Toque na foto para escolher uma da galeria",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = TextoSecundario
             )
 
             if (uploadFotoState is UploadFotoState.Erro) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(
                     text = (uploadFotoState as UploadFotoState.Erro).mensagem,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+                    color = VermelhoErro
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Spacing.lg))
 
             OutlinedTextField(
                 value = nome,
@@ -180,7 +210,7 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
             OutlinedTextField(
                 value = usuario?.email.orEmpty(),
@@ -191,80 +221,119 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.xs))
 
             Text(
                 text = "O e-mail não pode ser alterado por aqui.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = TextoSecundario
             )
 
             when (val estado = profileState) {
                 is ProfileState.Erro -> {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
                         text = estado.mensagem,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = VermelhoErro
                     )
                 }
                 is ProfileState.Sucesso -> {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
                         text = "Perfil atualizado com sucesso!",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = VerdeSucesso
                     )
                 }
                 else -> {}
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
-            Button(
+            PrimaryButton(
+                text = "Salvar alterações",
                 onClick = { authViewModel.atualizarPerfil(nome, fotoUrl) },
                 enabled = profileState !is ProfileState.Loading && uploadFotoState !is UploadFotoState.Loading,
+                loading = profileState is ProfileState.Loading,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                if (profileState is ProfileState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Salvar alterações")
-                }
-            }
+            )
 
-            Spacer(modifier = Modifier.height(28.dp))
-            Divider(color = MaterialTheme.colorScheme.surface)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.lg))
 
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onPedidosClick() }
-                    .padding(vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .clip(RoundedCornerShape(Spacing.radiusMedium))
+                    .background(FundoCard)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Receipt,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                ItemMenuPerfil(
+                    icone = Icons.Default.Receipt,
+                    rotulo = "Meus pedidos",
+                    onClick = onPedidosClick
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Meus pedidos",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.12f))
+                ItemMenuPerfil(
+                    icone = Icons.Default.Favorite,
+                    rotulo = "Meus favoritos",
+                    onClick = onFavoritosClick
                 )
             }
+
+            Spacer(modifier = Modifier.height(Spacing.md))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Spacing.radiusMedium))
+                    .background(FundoCard)
+            ) {
+                ItemMenuPerfil(
+                    icone = Icons.Default.Logout,
+                    rotulo = "Sair",
+                    corTexto = VermelhoErro,
+                    corIcone = VermelhoErro,
+                    mostrarSeta = false,
+                    onClick = onLogoutClick
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.xl))
+        }
+    }
+}
+
+/** Item de linha do menu do perfil (ícone + rótulo + seta), reutilizado para cada atalho. */
+@Composable
+private fun ItemMenuPerfil(
+    icone: ImageVector,
+    rotulo: String,
+    onClick: () -> Unit,
+    corTexto: androidx.compose.ui.graphics.Color = TextoPrincipal,
+    corIcone: androidx.compose.ui.graphics.Color = RoxoNeonClaro,
+    mostrarSeta: Boolean = true
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = Spacing.md, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(imageVector = icone, contentDescription = null, tint = corIcone)
+        Spacer(modifier = Modifier.width(Spacing.md))
+        Text(
+            text = rotulo,
+            style = MaterialTheme.typography.bodyLarge,
+            color = corTexto,
+            modifier = Modifier.weight(1f)
+        )
+        if (mostrarSeta) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = TextoSecundario
+            )
         }
     }
 }
