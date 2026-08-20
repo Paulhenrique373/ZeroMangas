@@ -57,7 +57,8 @@ fun CartScreen(
     cartViewModel: CartViewModel,
     usuarioId: String,
     onVoltar: () -> Unit,
-    onIrParaCheckout: () -> Unit
+    onIrParaCheckout: () -> Unit,
+    onExplorarClick: () -> Unit = {}
 ) {
     val itens by cartViewModel.itens.collectAsState()
     val cep by cartViewModel.cep.collectAsState()
@@ -123,7 +124,9 @@ fun CartScreen(
             EmptyState(
                 titulo = "Seu carrinho está vazio",
                 subtitulo = "Adicione mangás para vê-los aqui.",
-                icone = Icons.Outlined.ShoppingCart
+                icone = Icons.Outlined.ShoppingCart,
+                textoAcao = "Explorar catálogo",
+                onAcaoClick = onExplorarClick
             )
         } else {
             LazyColumn(

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.User
 import com.example.zeromangas.data.repository.StorageRepository
 import com.example.zeromangas.repository.AuthRepository
+import com.example.zeromangas.repository.UsuarioRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -36,6 +37,7 @@ class AuthViewModel : ViewModel() {
 
     private val repository = AuthRepository()
     private val storageRepository = StorageRepository()
+    private val usuarioRepository = UsuarioRepository()
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState
@@ -61,7 +63,8 @@ class AuthViewModel : ViewModel() {
         viewModelScope.launch {
             val resultado = repository.cadastrar(nome, email, senha)
             resultado.fold(
-                onSuccess = {
+                onSuccess = { usuarioFirebase ->
+                    usuarioRepository.sincronizarUsuario(usuarioFirebase.uid, nome, email)
                     _authState.value = AuthState.Sucesso
                     carregarUsuario()
                 },
@@ -80,7 +83,9 @@ class AuthViewModel : ViewModel() {
         viewModelScope.launch {
             val resultado = repository.login(email, senha)
             resultado.fold(
-                onSuccess = {
+                onSuccess = { usuarioFirebase ->
+                    val nome = usuarioFirebase.displayName ?: ""
+                    usuarioRepository.sincronizarUsuario(usuarioFirebase.uid, nome, email)
                     _authState.value = AuthState.Sucesso
                     carregarUsuario()
                 },
@@ -126,11 +131,6 @@ class AuthViewModel : ViewModel() {
         _profileState.value = ProfileState.Idle
     }
 
-    /**
-     * Envia a foto escolhida na galeria para o Supabase Storage.
-     * Ao terminar, o resultado fica disponível em [uploadFotoState] com a URL pública,
-     * que a tela deve usar para preencher o campo de foto antes de salvar o perfil.
-     */
     fun uploadFotoPerfil(context: Context, uri: Uri) {
         val uid = repository.currentUser?.uid
         if (uid == null) {

@@ -3,6 +3,8 @@ package com.example.zeromangas.data.model
 data class Order(
     val id: String = "",
     val userId: String = "",
+    val clienteId: String? = null,
+    val enderecoId: String? = null,
     val itens: List<CartItem> = emptyList(),
     val valorProdutos: Double = 0.0,
     val valorFrete: Double = 0.0,

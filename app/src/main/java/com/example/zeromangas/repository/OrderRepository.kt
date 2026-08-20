@@ -27,6 +27,8 @@ private data class ProdutoResumoDto(
 private data class PedidoDto(
     val id: String? = null,
     @SerialName("user_id") val userId: String,
+    @SerialName("cliente_id") val clienteId: String? = null,
+    @SerialName("endereco_id") val enderecoId: String? = null,
     @SerialName("valor_produtos") val valorProdutos: Double,
     @SerialName("valor_frete") val valorFrete: Double,
     @SerialName("valor_desconto") val valorDesconto: Double = 0.0,
@@ -65,7 +67,9 @@ private data class CriarPedidoParamsDto(
     @SerialName("p_tipo_frete") val tipoFrete: String,
     @SerialName("p_cep") val cep: String,
     @SerialName("p_cupom_codigo") val cupomCodigo: String = "",
-    @SerialName("p_itens") val itens: List<CriarPedidoItemDto>
+    @SerialName("p_itens") val itens: List<CriarPedidoItemDto>,
+    @SerialName("p_cliente_id") val clienteId: String? = null,
+    @SerialName("p_endereco_id") val enderecoId: String? = null
 )
 
 // ---- DTO para a RPC cancelar_pedido ----
@@ -114,7 +118,9 @@ class OrderRepository {
                         quantidade = item.quantidade,
                         precoUnitario = item.manga.preco
                     )
-                }
+                },
+                clienteId = order.clienteId,
+                enderecoId = order.enderecoId
             )
 
             val paramsJson = jsonRpc.encodeToJsonElement(
@@ -166,6 +172,8 @@ class OrderRepository {
                 Order(
                     id = pedidoId,
                     userId = pedidoDto.userId,
+                    clienteId = pedidoDto.clienteId,
+                    enderecoId = pedidoDto.enderecoId,
                     itens = itensCarrinho,
                     valorProdutos = pedidoDto.valorProdutos,
                     valorFrete = pedidoDto.valorFrete,

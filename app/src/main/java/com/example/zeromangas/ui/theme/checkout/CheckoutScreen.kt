@@ -68,6 +68,8 @@ fun CheckoutScreen(
     val frete by cartViewModel.frete.collectAsState()
     val calculandoFrete by cartViewModel.calculandoFrete.collectAsState()
     val cidadeUf by cartViewModel.cidadeUf.collectAsState()
+    val numero by cartViewModel.numero.collectAsState()
+    val complemento by cartViewModel.complemento.collectAsState()
     val cupomAplicado by cartViewModel.cupomAplicado.collectAsState()
     val desconto by cartViewModel.desconto.collectAsState()
     val checkoutState by cartViewModel.checkoutState.collectAsState()
@@ -127,6 +129,25 @@ fun CheckoutScreen(
                         onCepChange = { cartViewModel.atualizarCep(it) },
                         onCalcularFrete = { cartViewModel.calcularFrete() }
                     )
+
+                    if (frete != null) {
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        OutlinedTextField(
+                            value = numero,
+                            onValueChange = { cartViewModel.atualizarNumero(it) },
+                            label = { Text("Número") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        OutlinedTextField(
+                            value = complemento,
+                            onValueChange = { cartViewModel.atualizarComplemento(it) },
+                            label = { Text("Complemento (opcional)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 EtapaCheckout.PAGAMENTO -> {

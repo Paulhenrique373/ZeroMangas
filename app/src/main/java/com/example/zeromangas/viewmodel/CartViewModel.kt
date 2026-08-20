@@ -6,10 +6,13 @@ import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
+import com.example.zeromangas.data.repository.EnderecoCep
 import com.example.zeromangas.data.repository.ViaCepRepository
 import com.example.zeromangas.repository.CupomRepository
+import com.example.zeromangas.repository.EnderecoRepository
 import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.repository.OrderRepository
+import com.example.zeromangas.repository.UsuarioRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +36,8 @@ class CartViewModel : ViewModel() {
     private val viaCepRepository = ViaCepRepository()
     private val cupomRepository = CupomRepository()
     private val mangaRepository = MangaRepository()
+    private val usuarioRepository = UsuarioRepository()
+    private val enderecoRepository = EnderecoRepository()
 
     private val _itens = MutableStateFlow<List<CartItem>>(emptyList())
     val itens: StateFlow<List<CartItem>> = _itens.asStateFlow()
@@ -55,6 +60,16 @@ class CartViewModel : ViewModel() {
 
     private val _cidadeUf = MutableStateFlow<String?>(null)
     val cidadeUf: StateFlow<String?> = _cidadeUf.asStateFlow()
+
+    // Endereço completo encontrado no ViaCEP (logradouro/bairro/cidade/uf), usado
+    // pra gravar a linha em "enderecos" no momento da compra.
+    private val _enderecoEncontrado = MutableStateFlow<EnderecoCep?>(null)
+
+    private val _numero = MutableStateFlow("")
+    val numero: StateFlow<String> = _numero.asStateFlow()
+
+    private val _complemento = MutableStateFlow("")
+    val complemento: StateFlow<String> = _complemento.asStateFlow()
 
     private val _checkoutState = MutableStateFlow<CheckoutState>(CheckoutState.Idle)
     val checkoutState: StateFlow<CheckoutState> = _checkoutState.asStateFlow()
@@ -132,7 +147,6 @@ class CartViewModel : ViewModel() {
     }
 
     fun removerItem(manga: Manga) {
-
         _itens.value = _itens.value.filterNot { it.manga.id == manga.id }
     }
 
@@ -145,6 +159,15 @@ class CartViewModel : ViewModel() {
         _frete.value = null
         _cepErro.value = null
         _cidadeUf.value = null
+        _enderecoEncontrado.value = null
+    }
+
+    fun atualizarNumero(valor: String) {
+        _numero.value = valor
+    }
+
+    fun atualizarComplemento(valor: String) {
+        _complemento.value = valor
     }
 
     /**
@@ -173,12 +196,14 @@ class CartViewModel : ViewModel() {
                 onSuccess = { endereco ->
                     _frete.value = valorFretePorUf(endereco.uf)
                     _cidadeUf.value = "${endereco.cidade} - ${endereco.uf}"
+                    _enderecoEncontrado.value = endereco
                     _cepErro.value = null
                 },
                 onFailure = { erro ->
                     _cepErro.value = erro.message ?: "Não foi possível calcular o frete."
                     _frete.value = null
                     _cidadeUf.value = null
+                    _enderecoEncontrado.value = null
                 }
             )
             _calculandoFrete.value = false
@@ -239,7 +264,6 @@ class CartViewModel : ViewModel() {
                         return@launch
                     }
 
-                    // Limite de 1 uso por usuário: verifica se este usuário já usou este cupom antes.
                     val usosPorUsuarioResult = cupomRepository.contarUsosPorUsuario(cupom.codigo, userId)
                     val usosPorUsuario = usosPorUsuarioResult.getOrElse {
                         _cupomErro.value = "Não foi possível validar o cupom. Tente novamente."
@@ -254,7 +278,6 @@ class CartViewModel : ViewModel() {
                         return@launch
                     }
 
-                    // Limite total de usos do cupom (0 = sem limite).
                     if (cupom.limiteTotal > 0) {
                         val usosTotaisResult = cupomRepository.contarUsosTotais(cupom.codigo)
                         val usosTotais = usosTotaisResult.getOrElse {
@@ -298,6 +321,10 @@ class CartViewModel : ViewModel() {
      * 1. Simula o processamento do pagamento (com chance de recusa, como um gateway real).
      * 2. Só se o pagamento for aprovado, valida estoque e cria o pedido (fluxo já existente).
      *
+     * Antes de criar o pedido, resolve o cliente_id do usuário logado e salva o endereço
+     * usado nesta compra em "enderecos", pra poder linkar pedidos.cliente_id e
+     * pedidos.endereco_id na RPC "criar_pedido".
+     *
      * O desconto de estoque acontece DENTRO da RPC "criar_pedido" (transação atômica no
      * banco), então não fazemos mais nenhum ajuste manual de estoque aqui depois de salvar
      * o pedido — isso evitaria contar o mesmo desconto duas vezes.
@@ -324,11 +351,8 @@ class CartViewModel : ViewModel() {
         _checkoutState.value = CheckoutState.Carregando
 
         viewModelScope.launch {
-            // 1. Simulação do pagamento: um pequeno delay (como um gateway real processando)
-            // e uma chance de recusa aleatória. Se recusado, a compra para aqui: nenhum
-            // pedido é criado e nenhum estoque é descontado.
             delay(1500)
-            val pagamentoAprovado = Math.random() > 0.2 // ~80% de chance de aprovação
+            val pagamentoAprovado = Math.random() > 0.2
 
             if (!pagamentoAprovado) {
                 _checkoutState.value = CheckoutState.Erro(
@@ -337,10 +361,6 @@ class CartViewModel : ViewModel() {
                 return@launch
             }
 
-            // 2. Pagamento aprovado: seguir com a validação de estoque real do banco.
-            // Isso é só uma checagem antecipada pra dar feedback rápido ao usuário;
-            // a validação definitiva (que impede corrida entre dois pedidos simultâneos)
-            // acontece dentro da RPC "criar_pedido", com "select ... for update".
             val produtoIds = itensAtuais.map { it.manga.id }
             val resultadoEstoque = mangaRepository.buscarEstoqueAtual(produtoIds)
 
@@ -367,13 +387,35 @@ class CartViewModel : ViewModel() {
                 }
             }
 
-            // 3. Estoque validado: seguir com o fluxo normal de criação do pedido.
+            // Resolve o cliente_id do usuário logado. Se falhar, o pedido ainda é criado
+            // (cliente_id fica nulo) — não travamos a compra por causa disso.
+            val clienteId = usuarioRepository.buscarClienteId(userId).getOrNull()
+
+            // Grava o endereço usado nesta compra (histórico), ligado ao cliente, e guarda
+            // o id retornado pra linkar no pedido. Também não bloqueia a compra se falhar.
+            var enderecoId: String? = null
+            val enderecoEncontrado = _enderecoEncontrado.value
+            if (enderecoEncontrado != null && clienteId != null) {
+                enderecoId = enderecoRepository.salvarEndereco(
+                    clienteId = clienteId,
+                    cep = enderecoEncontrado.cep,
+                    logradouro = enderecoEncontrado.logradouro,
+                    numero = _numero.value,
+                    complemento = _complemento.value,
+                    bairro = enderecoEncontrado.bairro,
+                    cidade = enderecoEncontrado.cidade,
+                    uf = enderecoEncontrado.uf
+                ).getOrNull()
+            }
+
             val subtotalAtual = itensAtuais.sumOf { it.subtotal }
             val cupomAtual = _cupomAplicado.value
             val descontoAtual = cupomAtual?.calcularDesconto(subtotalAtual) ?: 0.0
 
             val pedido = Order(
                 userId = userId,
+                clienteId = clienteId,
+                enderecoId = enderecoId,
                 itens = itensAtuais,
                 valorProdutos = subtotalAtual,
                 valorFrete = freteAtual,
@@ -386,9 +428,6 @@ class CartViewModel : ViewModel() {
                 status = "PROCESSANDO"
             )
 
-            // 4. Salva o pedido chamando a RPC "criar_pedido": ela insere o pedido, os itens
-            // E desconta o estoque de cada produto, tudo numa transação só. Não há mais
-            // nenhuma chamada manual a "descontarEstoque" depois disso.
             val resultado = orderRepository.salvarPedido(pedido)
             resultado.fold(
                 onSuccess = { pedidoId ->
@@ -397,12 +436,13 @@ class CartViewModel : ViewModel() {
                     _cep.value = ""
                     _frete.value = null
                     _cidadeUf.value = null
+                    _numero.value = ""
+                    _complemento.value = ""
+                    _enderecoEncontrado.value = null
                     removerCupom()
                 },
                 onFailure = { erro ->
-                    _checkoutState.value = CheckoutState.Erro(
-                        erro.message ?: "Não foi possível finalizar a compra. Tente novamente."
-                    )
+                    _checkoutState.value = CheckoutState.Erro(erro.message ?: "Não foi possível finalizar a compra.")
                 }
             )
         }
