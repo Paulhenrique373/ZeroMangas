@@ -1,9 +1,11 @@
 package com.example.zeromangas.ui.theme.cart
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -11,6 +13,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,9 +34,24 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.data.model.Cupom
+import com.example.zeromangas.ui.components.EmptyState
+import com.example.zeromangas.ui.components.PriceText
+import com.example.zeromangas.ui.components.PrimaryButton
+import com.example.zeromangas.ui.components.SecondaryButton
+import com.example.zeromangas.ui.components.formatarPrecoBr
+import com.example.zeromangas.ui.theme.FundoCard
+import com.example.zeromangas.ui.theme.RoxoNeonClaro
+import com.example.zeromangas.ui.theme.Spacing
+import com.example.zeromangas.ui.theme.TextoPrincipal
+import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.CheckoutState
 
+/**
+ * Tela do carrinho. A lógica (quantidade, frete via ViaCEP, cupom, checkout em duas
+ * etapas) é 100% a mesma do [CartViewModel] já existente — só o visual muda, agora
+ * usando os componentes do design system (PriceText, PrimaryButton, EmptyState).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CartScreen(
@@ -82,16 +101,17 @@ fun CartScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onVoltar) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
             }
             Text(
                 text = "Meu Carrinho",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 8.dp)
+                color = TextoPrincipal,
+                modifier = Modifier.padding(start = Spacing.sm)
             )
         }
 
@@ -99,10 +119,10 @@ fun CartScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .padding(horizontal = Spacing.lg)
+                    .clip(RoundedCornerShape(Spacing.radiusSmall))
                     .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(12.dp)
+                    .padding(Spacing.md)
             ) {
                 Text(
                     text = avisoEstoque ?: "",
@@ -110,28 +130,21 @@ fun CartScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
         if (itens.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Seu carrinho está vazio.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            EmptyState(
+                titulo = "Seu carrinho está vazio",
+                subtitulo = "Adicione mangás para vê-los aqui.",
+                icone = Icons.Outlined.ShoppingCart
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(horizontal = Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 items(itens, key = { it.manga.id }) { item ->
                     CartItemCard(
@@ -143,7 +156,7 @@ fun CartScreen(
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(Spacing.xs))
                     SecaoFrete(
                         cep = cep,
                         cepErro = cepErro,
@@ -156,7 +169,7 @@ fun CartScreen(
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(Spacing.md))
                     SecaoCupom(
                         cupomInput = cupomInput,
                         cupomAplicado = cupomAplicado,
@@ -169,34 +182,35 @@ fun CartScreen(
                 }
             }
 
-            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(Spacing.lg)) {
                 LinhaResumo(rotulo = "Subtotal", valor = subtotal)
                 LinhaResumo(rotulo = "Frete", valor = frete)
                 if (cupomAplicado != null) {
                     LinhaResumo(
                         rotulo = "Desconto (${cupomAplicado?.codigo})",
                         valor = null,
-                        textoAlternativo = "- R$ ${"%.2f".format(desconto)}"
+                        textoAlternativo = "- ${formatarPrecoBr(desconto)}"
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Divider()
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Total", style = MaterialTheme.typography.titleMedium)
+                    Text("Total", style = MaterialTheme.typography.titleMedium, color = TextoPrincipal)
                     Text(
-                        text = "R$ ${"%.2f".format(total)}",
+                        text = formatarPrecoBr(total),
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        color = RoxoNeonClaro
                     )
                 }
 
                 if (checkoutState is CheckoutState.Erro) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
                         text = (checkoutState as CheckoutState.Erro).mensagem,
                         style = MaterialTheme.typography.bodySmall,
@@ -204,23 +218,15 @@ fun CartScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(Spacing.md))
 
-                Button(
+                PrimaryButton(
+                    text = "Finalizar Compra",
                     onClick = { mostrarResumo = true },
                     enabled = checkoutState !is CheckoutState.Carregando,
+                    loading = checkoutState is CheckoutState.Carregando,
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (checkoutState is CheckoutState.Carregando) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text("Finalizar Compra")
-                    }
-                }
+                )
             }
         }
     }
@@ -238,7 +244,7 @@ fun CartScreen(
                         LinhaResumo(
                             rotulo = "Desconto (${cupomAplicado?.codigo})",
                             valor = null,
-                            textoAlternativo = "- R$ ${"%.2f".format(desconto)}"
+                            textoAlternativo = "- ${formatarPrecoBr(desconto)}"
                         )
                     }
                     if (cep.isNotBlank()) {
@@ -247,18 +253,18 @@ fun CartScreen(
                     if (cidadeUf != null) {
                         LinhaResumo(rotulo = "Destino", valor = null, textoAlternativo = cidadeUf)
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Divider()
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Total", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "R$ ${"%.2f".format(total)}",
+                            text = formatarPrecoBr(total),
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = RoxoNeonClaro
                         )
                     }
                 }
@@ -286,43 +292,40 @@ fun CartScreen(
             text = {
                 Column {
                     Text(
-                        text = "Escolha como deseja pagar R$ ${"%.2f".format(total)}:",
+                        text = "Escolha como deseja pagar ${formatarPrecoBr(total)}:",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = TextoSecundario
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(Spacing.md))
 
-                    OutlinedButton(
+                    SecondaryButton(
+                        text = "Cartão de Crédito",
                         onClick = {
                             mostrarPagamento = false
                             cartViewModel.finalizarCompra(usuarioId, "Cartão de Crédito")
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Cartão de Crédito")
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.sm))
 
-                    OutlinedButton(
+                    SecondaryButton(
+                        text = "Pix",
                         onClick = {
                             mostrarPagamento = false
                             cartViewModel.finalizarCompra(usuarioId, "Pix")
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Pix")
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.sm))
 
-                    OutlinedButton(
+                    SecondaryButton(
+                        text = "Boleto",
                         onClick = {
                             mostrarPagamento = false
                             cartViewModel.finalizarCompra(usuarioId, "Boleto")
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Boleto")
-                    }
+                    )
                 }
             },
             confirmButton = {},
@@ -331,23 +334,6 @@ fun CartScreen(
                     Text("Cancelar")
                 }
             }
-        )
-    }
-}
-
-@Composable
-fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(rotulo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            text = textoAlternativo ?: (if (valor != null) "R$ ${"%.2f".format(valor)}" else "—"),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -366,12 +352,12 @@ fun SecaoFrete(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp)
+            .clip(RoundedCornerShape(Spacing.radiusMedium))
+            .background(FundoCard)
+            .padding(Spacing.md)
     ) {
-        Text("Calcular frete", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(10.dp))
+        Text("Calcular frete", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -384,8 +370,12 @@ fun SecaoFrete(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(10.dp))
-            Button(onClick = onCalcularFrete, enabled = !calculando) {
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            Button(
+                onClick = onCalcularFrete,
+                enabled = !calculando,
+                shape = RoundedCornerShape(Spacing.radiusSmall)
+            ) {
                 if (calculando) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
@@ -399,22 +389,22 @@ fun SecaoFrete(
         }
 
         if (cepErro != null) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(Spacing.xs))
             Text(cepErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         } else if (frete != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             if (cidadeUf != null) {
                 Text(
                     text = "Entrega para: $cidadeUf",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = TextoSecundario
                 )
                 Spacer(modifier = Modifier.height(2.dp))
             }
             Text(
-                text = "Frete: R$ ${"%.2f".format(frete)}",
+                text = "Frete: ${formatarPrecoBr(frete)}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = RoxoNeonClaro
             )
         }
     }
@@ -434,12 +424,12 @@ fun SecaoCupom(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp)
+            .clip(RoundedCornerShape(Spacing.radiusMedium))
+            .background(FundoCard)
+            .padding(Spacing.md)
     ) {
-        Text("Cupom de desconto", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(10.dp))
+        Text("Cupom de desconto", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
         if (cupomAplicado != null) {
             Row(
@@ -451,10 +441,10 @@ fun SecaoCupom(
                     text = "\"${cupomAplicado.codigo}\" aplicado",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = RoxoNeonClaro
                 )
                 IconButton(onClick = onRemoverCupom, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Remover cupom", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Remover cupom", tint = TextoPrincipal, modifier = Modifier.size(18.dp))
                 }
             }
         } else {
@@ -468,8 +458,12 @@ fun SecaoCupom(
                     enabled = !validando,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                Button(onClick = onAplicarCupom, enabled = !validando) {
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Button(
+                    onClick = onAplicarCupom,
+                    enabled = !validando,
+                    shape = RoundedCornerShape(Spacing.radiusSmall)
+                ) {
                     if (validando) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
@@ -483,7 +477,7 @@ fun SecaoCupom(
             }
 
             if (cupomErro != null) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(cupomErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
         }
@@ -500,15 +494,15 @@ fun CartItemCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(12.dp),
+            .clip(RoundedCornerShape(Spacing.radiusMedium))
+            .background(FundoCard)
+            .padding(Spacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size(72.dp)
+                .clip(RoundedCornerShape(Spacing.radiusSmall))
                 .background(MaterialTheme.colorScheme.background)
         ) {
             AsyncImage(
@@ -519,43 +513,77 @@ fun CartItemCard(
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(Spacing.md))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.manga.nome,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = TextoPrincipal,
                 maxLines = 1
             )
             Text(
-                text = "R$ ${"%.2f".format(item.manga.preco)} un.",
+                text = "Vol. ${item.manga.volume} · ${formatarPrecoBr(item.manga.preco)} un.",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = TextoSecundario,
+                maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDiminuir, modifier = Modifier.size(28.dp)) {
-                    Text(text = "−", style = MaterialTheme.typography.titleMedium)
-                }
-                Text(text = "${item.quantidade}", modifier = Modifier.padding(horizontal = 8.dp))
-                IconButton(onClick = onAumentar, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Add, contentDescription = "Aumentar", modifier = Modifier.size(16.dp))
-                }
+                QuantidadeBotao(icone = Icons.Default.Remove, contentDescription = "Diminuir", onClick = onDiminuir)
+                Text(
+                    text = "${item.quantidade}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextoPrincipal,
+                    modifier = Modifier.padding(horizontal = Spacing.sm)
+                )
+                QuantidadeBotao(icone = Icons.Default.Add, contentDescription = "Aumentar", onClick = onAumentar)
             }
         }
 
         Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = "R$ ${"%.2f".format(item.subtotal)}",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            IconButton(onClick = onRemover) {
-                Icon(Icons.Default.Delete, contentDescription = "Remover", modifier = Modifier.size(18.dp))
+            PriceText(preco = item.subtotal)
+            IconButton(onClick = onRemover, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = "Remover", tint = TextoSecundario, modifier = Modifier.size(18.dp))
             }
         }
+    }
+}
+
+/** Botão circular pequeno de +/- usado no stepper de quantidade do item do carrinho. */
+@Composable
+private fun QuantidadeBotao(
+    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.background)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(imageVector = icone, contentDescription = contentDescription, tint = TextoPrincipal, modifier = Modifier.size(14.dp))
+    }
+}
+
+@Composable
+fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(rotulo, style = MaterialTheme.typography.bodyMedium, color = TextoSecundario)
+        Text(
+            text = textoAlternativo ?: (if (valor != null) formatarPrecoBr(valor) else "—"),
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextoSecundario
+        )
     }
 }
