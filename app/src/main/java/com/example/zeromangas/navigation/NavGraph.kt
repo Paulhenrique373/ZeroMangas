@@ -1,11 +1,11 @@
 package com.example.zeromangas.navigation
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -13,8 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.zeromangas.ui.components.EmptyState
+import com.example.zeromangas.ui.components.LoadingState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -105,7 +106,16 @@ fun NavGraph() {
         NavHost(
             navController = navController,
             startDestination = Tela.Login.rota,
-            modifier = Modifier.padding(paddingInterno)
+            modifier = Modifier.padding(paddingInterno),
+            // ETAPA 11 (polimento): transição de fade suave entre TODAS as telas
+            // (padrão global do NavHost, nenhuma tela precisou ser alterada pra ganhar isso).
+            // Optou-se por fade em vez de slide direcional porque o mesmo NavHost também
+            // atende a troca de abas do BottomNavBar, onde um slide de "avançar/voltar"
+            // não faz sentido semântico.
+            enterTransition = { fadeIn(animationSpec = tween(220)) },
+            exitTransition = { fadeOut(animationSpec = tween(180)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(220)) },
+            popExitTransition = { fadeOut(animationSpec = tween(180)) }
         ) {
             composable(Tela.Login.rota) {
                 LoginScreen(
@@ -201,14 +211,14 @@ fun NavGraph() {
 
                 when {
                     carregando -> {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                        }
+                        LoadingState(modifier = Modifier.fillMaxSize())
                     }
                     erro != null -> {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            Text(text = erro ?: "", modifier = Modifier.align(Alignment.Center))
-                        }
+                        EmptyState(
+                            titulo = "Não foi possível carregar",
+                            subtitulo = erro,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                     else -> {
                         DetalhesScreen(

@@ -3,7 +3,9 @@ package com.example.zeromangas.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -37,13 +39,21 @@ fun LoadingState(modifier: Modifier = Modifier) {
 
 /**
  * Estado vazio padrão (carrinho vazio, sem favoritos, sem resultados de busca...).
+ *
+ * ETAPA 11 (polimento, parte 2): ganhou uma ação opcional ([textoAcao] + [onAcaoClick]).
+ * Quando informados, mostra um [SecondaryButton] logo abaixo do texto — por exemplo
+ * "Explorar catálogo" no carrinho/favoritos vazios, ou "Limpar filtros" numa busca sem
+ * resultado. Quando omitidos (padrão), o EmptyState se comporta exatamente como antes,
+ * então nenhuma tela existente quebra por causa dessa mudança.
  */
 @Composable
 fun EmptyState(
     titulo: String,
     modifier: Modifier = Modifier,
     subtitulo: String? = null,
-    icone: ImageVector = Icons.Outlined.SearchOff
+    icone: ImageVector = Icons.Outlined.SearchOff,
+    textoAcao: String? = null,
+    onAcaoClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -70,6 +80,13 @@ fun EmptyState(
                     text = subtitulo,
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextoSecundario
+                )
+            }
+            if (textoAcao != null && onAcaoClick != null) {
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                SecondaryButton(
+                    text = textoAcao,
+                    onClick = onAcaoClick
                 )
             }
         }

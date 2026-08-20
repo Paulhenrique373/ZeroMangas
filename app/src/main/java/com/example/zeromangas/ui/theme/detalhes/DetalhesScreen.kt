@@ -1,5 +1,8 @@
 package com.example.zeromangas.ui.detalhes
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -80,6 +84,14 @@ fun DetalhesScreen(
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
     val isFavorito = manga.id in favoritosIds
 
+    // ETAPA 11 (polimento): mesmo "pulo" do coração usado no MangaCardFavoritavel,
+    // aqui aplicado ao botão de favorito grande sobre a capa.
+    val escalaFavorito by animateFloatAsState(
+        targetValue = if (isFavorito) 1.15f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMedium),
+        label = "escalaFavoritoDetalhes"
+    )
+
     LaunchedEffect(usuarioId) {
         favoritoViewModel.carregarFavoritos(usuarioId)
     }
@@ -123,6 +135,7 @@ fun DetalhesScreen(
                         icone = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
                         tint = if (isFavorito) RoxoNeonClaro else TextoPrincipal,
+                        escala = escalaFavorito,
                         onClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
                     )
                 }
@@ -288,7 +301,8 @@ private fun BotaoCircular(
     icone: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    tint: androidx.compose.ui.graphics.Color = TextoPrincipal
+    tint: androidx.compose.ui.graphics.Color = TextoPrincipal,
+    escala: Float = 1f
 ) {
     Box(
         modifier = Modifier
@@ -298,7 +312,12 @@ private fun BotaoCircular(
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(imageVector = icone, contentDescription = contentDescription, tint = tint)
+        Icon(
+            imageVector = icone,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.scale(escala)
+        )
     }
 }
 
