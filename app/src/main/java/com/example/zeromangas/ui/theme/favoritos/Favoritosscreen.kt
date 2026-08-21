@@ -40,7 +40,8 @@ fun FavoritosScreen(
     cartViewModel: CartViewModel,
     usuarioId: String,
     onVoltar: () -> Unit,
-    onMangaClick: (Manga) -> Unit
+    onMangaClick: (Manga) -> Unit,
+    onExplorarClick: () -> Unit = {}
 ) {
     val mangasFavoritos by favoritoViewModel.mangasFavoritos.collectAsState()
     val avisoEstoque by cartViewModel.avisoEstoque.collectAsState()
@@ -97,7 +98,9 @@ fun FavoritosScreen(
             EmptyState(
                 titulo = "Você ainda não favoritou nenhum mangá",
                 subtitulo = "Toque no ❤ de um mangá para adicioná-lo aqui.",
-                icone = Icons.Outlined.FavoriteBorder
+                icone = Icons.Outlined.FavoriteBorder,
+                textoAcao = "Explorar catálogo",
+                onAcaoClick = onExplorarClick
             )
         } else {
             LazyVerticalGrid(

@@ -431,6 +431,10 @@ class CartViewModel : ViewModel() {
             val resultado = orderRepository.salvarPedido(pedido)
             resultado.fold(
                 onSuccess = { pedidoId ->
+                    // Registra o pagamento separadamente. Se falhar, não desfaz a compra —
+                    // o pedido já foi criado e o pagamento (simulado) já foi "aprovado" acima.
+                    orderRepository.registrarPagamento(pedidoId, metodoPagamento, pedido.valorTotal)
+
                     _checkoutState.value = CheckoutState.Sucesso(pedidoId)
                     limparCarrinho()
                     _cep.value = ""

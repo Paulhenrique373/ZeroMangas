@@ -79,6 +79,15 @@ private data class CancelarPedidoParamsDto(
     @SerialName("p_pedido_id") val pedidoId: String
 )
 
+// ---- DTO para a RPC registrar_pagamento ----
+
+@Serializable
+private data class RegistrarPagamentoParamsDto(
+    @SerialName("p_pedido_id") val pedidoId: String,
+    @SerialName("p_metodo") val metodo: String,
+    @SerialName("p_valor") val valor: Double
+)
+
 // Instância de Json configurada para SEMPRE incluir todos os campos ao serializar,
 // mesmo os que têm valor igual ao padrão (ex: cupomCodigo = ""). Por padrão o
 // kotlinx.serialization omite campos "no padrão", o que fazia a RPC do Postgres
@@ -210,6 +219,26 @@ class OrderRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception(e.message ?: "Não foi possível cancelar o pedido.", e))
+        }
+    }
+
+    /**
+     * Registra o pagamento de um pedido já criado, chamando a RPC "registrar_pagamento".
+     * É uma chamada separada de "criar_pedido" de propósito: se ela falhar por qualquer
+     * motivo, o pedido em si já foi criado com sucesso e não deve ser desfeito por causa
+     * disso — só logamos o erro e seguimos.
+     */
+    suspend fun registrarPagamento(pedidoId: String, metodo: String, valor: Double): Result<Unit> {
+        return try {
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                RegistrarPagamentoParamsDto.serializer(),
+                RegistrarPagamentoParamsDto(pedidoId = pedidoId, metodo = metodo, valor = valor)
+            ).jsonObject
+
+            SupabaseClient.client.postgrest.rpc("registrar_pagamento", paramsJson)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível registrar o pagamento.", e))
         }
     }
 

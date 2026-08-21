@@ -19,6 +19,19 @@ private data class ClienteDto(
     @SerialName("usuario_id") val usuarioId: String
 )
 
+@Serializable
+private data class PerfilDto(
+    val id: String? = null,
+    val nome: String
+)
+
+@Serializable
+private data class UsuarioPerfilDto(
+    val id: String? = null,
+    @SerialName("usuario_id") val usuarioId: String,
+    @SerialName("perfil_id") val perfilId: String
+)
+
 /**
  * Sincroniza o usuário logado no Firebase com as tabelas "usuarios" e "clientes"
  * do Supabase. Deve ser chamado após cadastro e após login bem-sucedidos,
@@ -28,6 +41,8 @@ class UsuarioRepository {
 
     private val usuariosTable = SupabaseClient.client.postgrest.from("usuarios")
     private val clientesTable = SupabaseClient.client.postgrest.from("clientes")
+    private val perfisTable = SupabaseClient.client.postgrest.from("perfis")
+    private val usuarioPerfilTable = SupabaseClient.client.postgrest.from("usuario_perfil")
 
     suspend fun sincronizarUsuario(firebaseUid: String, nome: String, email: String): Result<Unit> {
         return try {
@@ -50,6 +65,24 @@ class UsuarioRepository {
 
                 // Cria o registro de cliente 1:1 junto, só na primeira vez
                 clientesTable.insert(ClienteDto(usuarioId = usuarioId))
+
+                // Atribui o perfil "cliente" por padrão (1:1 em usuario_perfil).
+                // Não bloqueia o cadastro se isso falhar por qualquer motivo —
+                // é um relacionamento auxiliar, não o cadastro em si.
+                try {
+                    val perfilCliente = perfisTable
+                        .select { filter { eq("nome", "cliente") } }
+                        .decodeList<PerfilDto>()
+                        .firstOrNull()
+
+                    if (perfilCliente?.id != null) {
+                        usuarioPerfilTable.insert(
+                            UsuarioPerfilDto(usuarioId = usuarioId, perfilId = perfilCliente.id)
+                        )
+                    }
+                } catch (e: Exception) {
+                    // Ignorado de propósito: ver comentário acima.
+                }
             } else {
                 usuarioId = existentes.first().id ?: return Result.failure(Exception("Usuário sem id"))
 

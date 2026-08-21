@@ -246,6 +246,14 @@ fun NavGraph() {
                     onVoltar = { navController.popBackStack() },
                     onIrParaCheckout = {
                         navController.navigate(Tela.Checkout.rota)
+                    },
+                    onExplorarClick = {
+                        // Mesmo padrão de troca de aba usado pelo BottomNavBar,
+                        // pra não empilhar telas duplicadas no back stack.
+                        navController.navigate(Tela.Home.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
@@ -316,6 +324,12 @@ fun NavGraph() {
                     onVoltar = { navController.popBackStack() },
                     onMangaClick = { manga ->
                         navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                    },
+                    onExplorarClick = {
+                        navController.navigate(Tela.Home.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
                     }
                 )
             }

@@ -258,7 +258,11 @@ fun BuscaScreen(
             resultadosFinais.isEmpty() -> EmptyState(
                 titulo = "Nenhum resultado encontrado",
                 subtitulo = "Tente outro termo, categoria ou filtro.",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                textoAcao = if (quantidadeFiltrosAtivos > 0) "Limpar filtros" else null,
+                onAcaoClick = if (quantidadeFiltrosAtivos > 0) {
+                    { buscaViewModel.limparFiltros() }
+                } else null
             )
 
             else -> {
