@@ -111,7 +111,7 @@ fun NavGraph() {
                 Snackbar(
                     containerColor = FundoCard,
                     contentColor = TextoPrincipal,
-                    actionColor = RoxoNeon
+                    actionContentColor = RoxoNeon
                 ) {
                     androidx.compose.material3.Text("✓ ${dados.visuals.message}")
                 }
