@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.detalhes
+package com.example.zeromangas.ui.theme.detalhes
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState

@@ -6,8 +6,8 @@ import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
-import com.example.zeromangas.data.repository.EnderecoCep
-import com.example.zeromangas.data.repository.ViaCepRepository
+import com.example.zeromangas.repository.EnderecoCep
+import com.example.zeromangas.repository.ViaCepRepository
 import com.example.zeromangas.repository.CupomRepository
 import com.example.zeromangas.repository.EnderecoRepository
 import com.example.zeromangas.repository.MangaRepository

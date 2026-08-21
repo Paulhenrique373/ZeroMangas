@@ -1,4 +1,4 @@
-package com.example.zeromangas.data.repository
+package com.example.zeromangas.repository
 
 import android.content.Context
 import android.net.Uri
@@ -12,7 +12,7 @@ import java.io.ByteArrayOutputStream
  * Responsável por enviar a foto de perfil escolhida pelo usuário
  * para o bucket "avatars" no Supabase Storage.
  *
- * A URL pública retornada deve ser salva no documento do usuário no Firestore
+ * A URL pública retornada deve ser salva no perfil do usuário no Supabase
  * (mesmo padrão usado hoje pro campo de foto de perfil).
  */
 class StorageRepository {

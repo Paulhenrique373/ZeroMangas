@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.login
+package com.example.zeromangas.ui.theme.login
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions

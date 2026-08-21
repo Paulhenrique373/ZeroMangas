@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.register
+package com.example.zeromangas.ui.theme.register
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions

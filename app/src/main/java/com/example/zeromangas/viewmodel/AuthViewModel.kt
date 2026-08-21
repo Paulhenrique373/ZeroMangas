@@ -5,7 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.User
-import com.example.zeromangas.data.repository.StorageRepository
+import com.example.zeromangas.repository.StorageRepository
 import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.UsuarioRepository
 import kotlinx.coroutines.flow.MutableStateFlow

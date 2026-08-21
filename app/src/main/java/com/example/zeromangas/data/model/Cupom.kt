@@ -1,7 +1,7 @@
 package com.example.zeromangas.data.model
 
 /**
- * Representa um cupom de desconto armazenado na coleção "cupons" do Firestore.
+ * Representa um cupom de desconto armazenado na tabela "cupons" do Supabase.
  *
  * tipoDesconto: "PERCENTUAL" (desconta % do subtotal) ou "FIXO" (desconta um valor fixo em R$)
  * valorMinimo: valor mínimo de subtotal necessário para o cupom ser válido (0.0 = sem mínimo)

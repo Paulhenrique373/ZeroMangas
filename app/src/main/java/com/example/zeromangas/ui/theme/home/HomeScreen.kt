@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.home
+package com.example.zeromangas.ui.theme.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

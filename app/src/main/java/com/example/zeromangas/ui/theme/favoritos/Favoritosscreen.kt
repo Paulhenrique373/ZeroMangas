@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.favoritos
+package com.example.zeromangas.ui.theme.favoritos
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

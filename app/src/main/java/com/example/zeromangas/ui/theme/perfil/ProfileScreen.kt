@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.perfil
+package com.example.zeromangas.ui.theme.perfil
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult

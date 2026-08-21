@@ -1,4 +1,4 @@
-package com.example.zeromangas.ui.busca
+package com.example.zeromangas.ui.theme.busca
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,8 +46,8 @@ import com.example.zeromangas.ui.components.CategoryChip
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.LoadingState
 import com.example.zeromangas.ui.components.MangaCardFavoritavel
-import com.example.zeromangas.ui.home.FiltrosBottomSheet
-import com.example.zeromangas.ui.home.OrdenacaoBottomSheet
+import com.example.zeromangas.ui.theme.home.FiltrosBottomSheet
+import com.example.zeromangas.ui.theme.home.OrdenacaoBottomSheet
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel

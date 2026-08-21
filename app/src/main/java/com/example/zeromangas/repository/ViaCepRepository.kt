@@ -1,4 +1,4 @@
-package com.example.zeromangas.data.repository
+package com.example.zeromangas.repository
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
