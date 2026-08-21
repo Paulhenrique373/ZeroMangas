@@ -4,96 +4,49 @@ import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 @Serializable
-private data class UsuarioDto(
-    val id: String? = null,
-    @SerialName("firebase_uid") val firebaseUid: String,
-    val nome: String,
-    val email: String
+private data class SincronizarUsuarioParamsDto(
+    @SerialName("p_firebase_uid") val firebaseUid: String,
+    @SerialName("p_nome") val nome: String,
+    @SerialName("p_email") val email: String
 )
 
 @Serializable
-private data class ClienteDto(
-    val id: String? = null,
-    @SerialName("usuario_id") val usuarioId: String
-)
-
-@Serializable
-private data class PerfilDto(
-    val id: String? = null,
-    val nome: String
-)
-
-@Serializable
-private data class UsuarioPerfilDto(
-    val id: String? = null,
+private data class SincronizarUsuarioResultDto(
     @SerialName("usuario_id") val usuarioId: String,
-    @SerialName("perfil_id") val perfilId: String
+    @SerialName("cliente_id") val clienteId: String? = null
 )
+
+@Serializable
+private data class BuscarClienteIdParamsDto(
+    @SerialName("p_firebase_uid") val firebaseUid: String
+)
+
+private val jsonRpc = Json { encodeDefaults = true }
 
 /**
- * Sincroniza o usuário logado no Firebase com as tabelas "usuarios" e "clientes"
- * do Supabase. Deve ser chamado após cadastro e após login bem-sucedidos,
- * já que o Postgres não tem visibilidade automática de quem loga via Firebase Auth.
+ * Sincroniza o usuário logado no Firebase com as tabelas "usuarios", "clientes" e
+ * "usuario_perfil" do Supabase. Deve ser chamado após cadastro e após login
+ * bem-sucedidos, já que o Postgres não tem visibilidade automática de quem loga
+ * via Firebase Auth.
+ *
+ * Todas as operações passam pela função "sincronizar_usuario" (security definer)
+ * em vez de inserts/updates diretos nas tabelas, porque elas têm RLS habilitada
+ * sem policy — só a função consegue escrever nelas.
  */
 class UsuarioRepository {
 
-    private val usuariosTable = SupabaseClient.client.postgrest.from("usuarios")
-    private val clientesTable = SupabaseClient.client.postgrest.from("clientes")
-    private val perfisTable = SupabaseClient.client.postgrest.from("perfis")
-    private val usuarioPerfilTable = SupabaseClient.client.postgrest.from("usuario_perfil")
-
     suspend fun sincronizarUsuario(firebaseUid: String, nome: String, email: String): Result<Unit> {
         return try {
-            // Verifica se o usuário já existe (idempotente: seguro chamar a cada login)
-            val existentes = usuariosTable
-                .select {
-                    filter { eq("firebase_uid", firebaseUid) }
-                }
-                .decodeList<UsuarioDto>()
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                SincronizarUsuarioParamsDto.serializer(),
+                SincronizarUsuarioParamsDto(firebaseUid = firebaseUid, nome = nome, email = email)
+            ).jsonObject
 
-            val usuarioId: String
-
-            if (existentes.isEmpty()) {
-                val inserido = usuariosTable
-                    .insert(UsuarioDto(firebaseUid = firebaseUid, nome = nome, email = email)) {
-                        select()
-                    }
-                    .decodeSingle<UsuarioDto>()
-                usuarioId = inserido.id ?: return Result.failure(Exception("Falha ao criar usuário"))
-
-                // Cria o registro de cliente 1:1 junto, só na primeira vez
-                clientesTable.insert(ClienteDto(usuarioId = usuarioId))
-
-                // Atribui o perfil "cliente" por padrão (1:1 em usuario_perfil).
-                // Não bloqueia o cadastro se isso falhar por qualquer motivo —
-                // é um relacionamento auxiliar, não o cadastro em si.
-                try {
-                    val perfilCliente = perfisTable
-                        .select { filter { eq("nome", "cliente") } }
-                        .decodeList<PerfilDto>()
-                        .firstOrNull()
-
-                    if (perfilCliente?.id != null) {
-                        usuarioPerfilTable.insert(
-                            UsuarioPerfilDto(usuarioId = usuarioId, perfilId = perfilCliente.id)
-                        )
-                    }
-                } catch (e: Exception) {
-                    // Ignorado de propósito: ver comentário acima.
-                }
-            } else {
-                usuarioId = existentes.first().id ?: return Result.failure(Exception("Usuário sem id"))
-
-                // Mantém nome/email atualizados caso o usuário edite o perfil no Firebase
-                usuariosTable.update(
-                    UsuarioDto(firebaseUid = firebaseUid, nome = nome, email = email)
-                ) {
-                    filter { eq("firebase_uid", firebaseUid) }
-                }
-            }
-
+            SupabaseClient.client.postgrest.rpc("sincronizar_usuario", paramsJson)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -102,27 +55,23 @@ class UsuarioRepository {
 
     /**
      * Busca o id do cliente (tabela "clientes") a partir do UID do Firebase,
-     * passando por "usuarios" no meio (usuarios.firebase_uid -> usuarios.id -> clientes.usuario_id).
+     * via a função "buscar_cliente_id".
      */
     suspend fun buscarClienteId(firebaseUid: String): Result<String> {
         return try {
-            val usuario = usuariosTable
-                .select {
-                    filter { eq("firebase_uid", firebaseUid) }
-                }
-                .decodeList<UsuarioDto>()
-                .firstOrNull() ?: return Result.failure(Exception("Usuário não sincronizado"))
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                BuscarClienteIdParamsDto.serializer(),
+                BuscarClienteIdParamsDto(firebaseUid = firebaseUid)
+            ).jsonObject
 
-            val usuarioId = usuario.id ?: return Result.failure(Exception("Usuário sem id"))
+            val resultado = SupabaseClient.client.postgrest.rpc("buscar_cliente_id", paramsJson)
 
-            val cliente = clientesTable
-                .select {
-                    filter { eq("usuario_id", usuarioId) }
-                }
-                .decodeList<ClienteDto>()
-                .firstOrNull() ?: return Result.failure(Exception("Cliente não encontrado"))
-
-            Result.success(cliente.id ?: return Result.failure(Exception("Cliente sem id")))
+            val bruto = resultado.data.trim('"')
+            if (bruto.isBlank() || bruto == "null") {
+                Result.failure(Exception("Cliente não encontrado"))
+            } else {
+                Result.success(bruto)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

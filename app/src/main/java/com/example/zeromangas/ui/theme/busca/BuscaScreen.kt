@@ -191,7 +191,7 @@ fun BuscaScreen(
                 contentPadding = PaddingValues(horizontal = Spacing.md),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
-                items(categorias) { categoria ->
+                items(categorias, key = { it }) { categoria ->
                     CategoryChip(
                         texto = categoria,
                         selecionado = categoriaSelecionada == categoria,
@@ -236,7 +236,7 @@ fun BuscaScreen(
                             contentPadding = PaddingValues(horizontal = Spacing.md),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                         ) {
-                            items(pesquisasRecentes) { termo ->
+                            items(pesquisasRecentes, key = { it }) { termo ->
                                 CategoryChip(
                                     texto = termo,
                                     selecionado = false,

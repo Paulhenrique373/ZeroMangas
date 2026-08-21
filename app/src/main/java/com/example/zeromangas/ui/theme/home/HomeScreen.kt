@@ -208,7 +208,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(horizontal = Spacing.md),
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
-            items(categorias) { categoria ->
+            items(categorias, key = { it }) { categoria ->
                 CategoryChip(
                     texto = categoria,
                     selecionado = categoriaSelecionada == categoria,
@@ -472,7 +472,7 @@ fun FiltrosBottomSheet(
                         onClick = { onCategoriaChange(null) }
                     )
                 }
-                items(categorias) { categoria ->
+                items(categorias, key = { it }) { categoria ->
                     CategoryChip(
                         texto = categoria,
                         selecionado = categoriaSelecionada == categoria,
@@ -493,7 +493,7 @@ fun FiltrosBottomSheet(
                         onClick = { onMarcaChange(null) }
                     )
                 }
-                items(marcas) { marca ->
+                items(marcas, key = { it }) { marca ->
                     CategoryChip(
                         texto = marca,
                         selecionado = marcaSelecionada == marca,

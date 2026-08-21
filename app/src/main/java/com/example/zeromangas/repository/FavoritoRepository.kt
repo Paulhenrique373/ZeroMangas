@@ -4,39 +4,42 @@ import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 @Serializable
-data class FavoritoDto(
-    val id: String? = null,
-    @SerialName("usuario_id") val usuarioId: String,
+private data class UsuarioProdutoParamsDto(
+    @SerialName("p_usuario_id") val usuarioId: String,
+    @SerialName("p_produto_id") val produtoId: String
+)
+
+@Serializable
+private data class ListarFavoritosParamsDto(
+    @SerialName("p_usuario_id") val usuarioId: String
+)
+
+@Serializable
+private data class FavoritoProdutoIdDto(
     @SerialName("produto_id") val produtoId: String
 )
 
+private val jsonRpc = Json { encodeDefaults = true }
+
 /**
  * Guarda os favoritos de cada usuário na tabela "favoritos" do Supabase (Postgres).
- * Como o id da linha é um UUID aleatório (não composto como era no Firestore),
- * verificamos se o favorito já existe antes de inserir, evitando duplicados.
+ * A tabela tem RLS habilitada sem policy — toda leitura/escrita passa pelas funções
+ * "adicionar_favorito", "remover_favorito" e "listar_favoritos" (security definer).
  */
 class FavoritoRepository {
 
-    private val favoritosTable = SupabaseClient.client.postgrest.from("favoritos")
-
     suspend fun adicionarFavorito(usuarioId: String, produtoId: String): Result<Unit> {
         return try {
-            val existentes = favoritosTable
-                .select {
-                    filter {
-                        eq("usuario_id", usuarioId)
-                        eq("produto_id", produtoId)
-                    }
-                }
-                .decodeList<FavoritoDto>()
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                UsuarioProdutoParamsDto.serializer(),
+                UsuarioProdutoParamsDto(usuarioId = usuarioId, produtoId = produtoId)
+            ).jsonObject
 
-            if (existentes.isEmpty()) {
-                favoritosTable.insert(
-                    FavoritoDto(usuarioId = usuarioId, produtoId = produtoId)
-                )
-            }
+            SupabaseClient.client.postgrest.rpc("adicionar_favorito", paramsJson)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -45,12 +48,12 @@ class FavoritoRepository {
 
     suspend fun removerFavorito(usuarioId: String, produtoId: String): Result<Unit> {
         return try {
-            favoritosTable.delete {
-                filter {
-                    eq("usuario_id", usuarioId)
-                    eq("produto_id", produtoId)
-                }
-            }
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                UsuarioProdutoParamsDto.serializer(),
+                UsuarioProdutoParamsDto(usuarioId = usuarioId, produtoId = produtoId)
+            ).jsonObject
+
+            SupabaseClient.client.postgrest.rpc("remover_favorito", paramsJson)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -62,13 +65,15 @@ class FavoritoRepository {
      */
     suspend fun listarFavoritos(usuarioId: String): Result<List<String>> {
         return try {
-            val lista = favoritosTable
-                .select {
-                    filter {
-                        eq("usuario_id", usuarioId)
-                    }
-                }
-                .decodeList<FavoritoDto>()
+            val paramsJson = jsonRpc.encodeToJsonElement(
+                ListarFavoritosParamsDto.serializer(),
+                ListarFavoritosParamsDto(usuarioId = usuarioId)
+            ).jsonObject
+
+            val lista = SupabaseClient.client.postgrest
+                .rpc("listar_favoritos", paramsJson)
+                .decodeList<FavoritoProdutoIdDto>()
+
             Result.success(lista.map { it.produtoId })
         } catch (e: Exception) {
             Result.failure(e)

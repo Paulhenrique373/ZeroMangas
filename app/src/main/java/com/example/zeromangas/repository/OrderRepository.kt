@@ -5,7 +5,6 @@ import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -15,13 +14,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-
-@Serializable
-private data class ProdutoResumoDto(
-    val id: String? = null,
-    val nome: String = "",
-    @SerialName("imagem_url") val imagemUrl: String = ""
-)
 
 @Serializable
 private data class PedidoDto(
@@ -45,7 +37,18 @@ private data class PedidoItemDto(
     @SerialName("produto_id") val produtoId: String,
     val quantidade: Int,
     @SerialName("preco_unitario") val precoUnitario: Double,
-    val produtos: ProdutoResumoDto? = null
+    @SerialName("produto_nome") val produtoNome: String? = null,
+    @SerialName("produto_imagem_url") val produtoImagemUrl: String? = null
+)
+
+@Serializable
+private data class ListarPedidosParamsDto(
+    @SerialName("p_user_id") val userId: String
+)
+
+@Serializable
+private data class ListarItensPedidoParamsDto(
+    @SerialName("p_pedido_id") val pedidoId: String
 )
 
 // ---- DTOs para a RPC criar_pedido ----
@@ -95,9 +98,6 @@ private data class RegistrarPagamentoParamsDto(
 private val jsonRpc = Json { encodeDefaults = true }
 
 class OrderRepository {
-
-    private val pedidosTable = SupabaseClient.client.postgrest.from("pedidos")
-    private val itensTable = SupabaseClient.client.postgrest.from("pedido_itens")
 
     /**
      * Cria o pedido chamando a RPC "criar_pedido" no Supabase.
@@ -151,27 +151,33 @@ class OrderRepository {
 
     suspend fun listarPedidosDoUsuario(userId: String): Result<List<Order>> {
         return try {
-            val pedidosDto = pedidosTable
-                .select {
-                    filter { eq("user_id", userId) }
-                }
+            val paramsPedidosJson = jsonRpc.encodeToJsonElement(
+                ListarPedidosParamsDto.serializer(),
+                ListarPedidosParamsDto(userId = userId)
+            ).jsonObject
+
+            val pedidosDto = SupabaseClient.client.postgrest
+                .rpc("listar_pedidos_usuario", paramsPedidosJson)
                 .decodeList<PedidoDto>()
 
             val pedidos = pedidosDto.map { pedidoDto ->
                 val pedidoId = pedidoDto.id ?: ""
 
-                val itensDto = itensTable
-                    .select(columns = Columns.raw("produto_id, quantidade, preco_unitario, produtos(id, nome, imagem_url)")) {
-                        filter { eq("pedido_id", pedidoId) }
-                    }
+                val paramsItensJson = jsonRpc.encodeToJsonElement(
+                    ListarItensPedidoParamsDto.serializer(),
+                    ListarItensPedidoParamsDto(pedidoId = pedidoId)
+                ).jsonObject
+
+                val itensDto = SupabaseClient.client.postgrest
+                    .rpc("listar_itens_pedido", paramsItensJson)
                     .decodeList<PedidoItemDto>()
 
                 val itensCarrinho = itensDto.map { itemDto ->
                     CartItem(
                         manga = Manga(
                             id = itemDto.produtoId,
-                            nome = itemDto.produtos?.nome ?: "Produto",
-                            imagemUrl = itemDto.produtos?.imagemUrl ?: "",
+                            nome = itemDto.produtoNome ?: "Produto",
+                            imagemUrl = itemDto.produtoImagemUrl ?: "",
                             preco = itemDto.precoUnitario
                         ),
                         quantidade = itemDto.quantidade

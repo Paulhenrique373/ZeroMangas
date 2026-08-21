@@ -77,6 +77,16 @@ class CartViewModel : ViewModel() {
     private val _avisoEstoque = MutableStateFlow<String?>(null)
     val avisoEstoque: StateFlow<String?> = _avisoEstoque.asStateFlow()
 
+    // ETAPA 11 (polimento, parte 3): mensagem de sucesso ao adicionar item ao carrinho,
+    // consumida por um Snackbar global no NavGraph (funciona em qualquer tela — Home,
+    // Detalhes, Favoritos — sem precisar duplicar UI de feedback em cada uma).
+    private val _mensagemSucesso = MutableStateFlow<String?>(null)
+    val mensagemSucesso: StateFlow<String?> = _mensagemSucesso.asStateFlow()
+
+    fun limparMensagemSucesso() {
+        _mensagemSucesso.value = null
+    }
+
     // ---- Cupom de desconto ----
 
     private val _cupomInput = MutableStateFlow("")
@@ -123,6 +133,8 @@ class CartViewModel : ViewModel() {
         } else {
             listaAtual + CartItem(manga = manga, quantidade = 1)
         }
+
+        _mensagemSucesso.value = "${manga.nome} adicionado ao carrinho!"
     }
 
     fun aumentarQuantidade(manga: Manga) {

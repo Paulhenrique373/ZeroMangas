@@ -6,6 +6,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -16,6 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.LoadingState
+import com.example.zeromangas.ui.theme.RoxoNeon
+import com.example.zeromangas.ui.theme.FundoCard
+import com.example.zeromangas.ui.theme.TextoPrincipal
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -85,7 +91,32 @@ fun NavGraph() {
     val itensCarrinho by cartViewModel.itens.collectAsState()
     val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
 
+    // ETAPA 11 (polimento, parte 3): Snackbar global de sucesso, vivendo no NavGraph
+    // (fora de qualquer tela específica) pra funcionar não importa de onde o item
+    // tenha sido adicionado ao carrinho — Home, Detalhes ou Favoritos.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val mensagemSucesso by cartViewModel.mensagemSucesso.collectAsState()
+
+    LaunchedEffect(mensagemSucesso) {
+        val mensagem = mensagemSucesso
+        if (mensagem != null) {
+            snackbarHostState.showSnackbar(mensagem)
+            cartViewModel.limparMensagemSucesso()
+        }
+    }
+
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { dados ->
+                Snackbar(
+                    containerColor = FundoCard,
+                    contentColor = TextoPrincipal,
+                    actionColor = RoxoNeon
+                ) {
+                    androidx.compose.material3.Text("✓ ${dados.visuals.message}")
+                }
+            }
+        },
         bottomBar = {
             if (rotaAtual in rotasComBottomBar) {
                 BottomNavBar(
