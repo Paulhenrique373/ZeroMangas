@@ -17,6 +17,20 @@ private data class EstoqueDto(
     val estoque: Int
 )
 
+/** Converte o DTO vindo do Supabase (com os joins de marca/categoria) para o model de UI. */
+private fun ProdutoDto.paraManga(): Manga = Manga(
+    id = id,
+    nome = nome,
+    marca = marcas?.nome ?: "",
+    categoria = categorias?.nome ?: "",
+    volume = volume,
+    preco = preco,
+    imagemUrl = imagemUrl,
+    descricao = descricao,
+    emDestaque = emDestaque,
+    estoque = estoque
+)
+
 class MangaRepository {
 
     private val produtosTable = SupabaseClient.client.postgrest.from("produtos")
@@ -33,21 +47,7 @@ class MangaRepository {
                 .select(columns = Columns.raw("*, marcas(nome), categorias(nome)"))
                 .decodeList<ProdutoDto>()
 
-            val mangas = dtos.map { dto ->
-                Manga(
-                    id = dto.id,
-                    nome = dto.nome,
-                    marca = dto.marcas?.nome ?: "",
-                    categoria = dto.categorias?.nome ?: "",
-                    volume = dto.volume,
-                    preco = dto.preco,
-                    imagemUrl = dto.imagemUrl,
-                    descricao = dto.descricao,
-                    emDestaque = dto.emDestaque,
-                    estoque = dto.estoque
-                )
-            }
-            Result.success(mangas)
+            Result.success(dtos.map { it.paraManga() })
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -66,6 +66,45 @@ class MangaRepository {
         return try {
             val lista = marcasTable.select().decodeList<MarcaDto>()
             Result.success(lista.map { it.nome }.sorted())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Busca um único produto pelo id (usado na tela de Detalhes), em vez de baixar o
+     * catálogo inteiro só para filtrar um item em memória. Já retorna junto até
+     * [limiteRecomendados] produtos da mesma categoria (excluindo o próprio produto),
+     * filtrando por "categoria_id" direto no banco.
+     */
+    suspend fun buscarMangaComRecomendados(
+        id: String,
+        limiteRecomendados: Int = 10
+    ): Result<Pair<Manga, List<Manga>>> {
+        return try {
+            val dto = produtosTable
+                .select(columns = Columns.raw("*, marcas(nome), categorias(nome)")) {
+                    filter {
+                        eq("id", id)
+                    }
+                }
+                .decodeList<ProdutoDto>()
+                .firstOrNull() ?: return Result.failure(Exception("Mangá não encontrado."))
+
+            val manga = dto.paraManga()
+
+            val recomendadosDtos = produtosTable
+                .select(columns = Columns.raw("*, marcas(nome), categorias(nome)")) {
+                    filter {
+                        eq("categoria_id", dto.categoriaId)
+                        neq("id", id)
+                    }
+                }
+                .decodeList<ProdutoDto>()
+
+            val recomendados = recomendadosDtos.map { it.paraManga() }.take(limiteRecomendados)
+
+            Result.success(manga to recomendados)
         } catch (e: Exception) {
             Result.failure(e)
         }

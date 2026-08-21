@@ -8,6 +8,10 @@ import io.github.jan.supabase.storage.Storage
  * Cliente único do Supabase, usado para Storage (upload de fotos de perfil)
  * e Postgrest (banco de dados relacional: produtos, pedidos, favoritos, cupons).
  * A autenticação continua no Firebase Auth.
+ *
+ * A URL e a chave abaixo ficam hardcoded de propósito: é a chave "publishable"
+ * do Supabase, feita para ser exposta no client (equivalente à chave pública
+ * do Firebase) — não é um segredo que precise ir para local.properties/BuildConfig.
  */
 object SupabaseClient {
 

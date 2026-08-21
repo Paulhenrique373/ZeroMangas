@@ -49,6 +49,7 @@ import com.example.zeromangas.ui.perfil.ProfileScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
+import com.example.zeromangas.viewmodel.HomeViewModel
 
 sealed class Tela(val rota: String) {
     object Login : Tela("login")
@@ -76,6 +77,7 @@ fun NavGraph() {
     val cartViewModel: CartViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val favoritoViewModel: FavoritoViewModel = viewModel()
+    val homeViewModel: HomeViewModel = viewModel()
 
     // Rotas em que a navegação inferior deve aparecer.
     val rotasComBottomBar = setOf(
@@ -178,6 +180,7 @@ fun NavGraph() {
 
             composable(Tela.Home.rota) {
                 HomeScreen(
+                    homeViewModel = homeViewModel,
                     cartViewModel = cartViewModel,
                     favoritoViewModel = favoritoViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
@@ -221,17 +224,11 @@ fun NavGraph() {
                 LaunchedEffect(mangaId) {
                     carregando = true
                     erro = null
-                    val resultado = mangaRepository.listarMangas()
+                    val resultado = mangaRepository.buscarMangaComRecomendados(mangaId)
                     resultado.fold(
-                        onSuccess = { lista ->
-                            val encontrado = lista.find { it.id == mangaId }
-                            manga = encontrado
-                            recomendados = if (encontrado != null) {
-                                lista.filter { it.categoria == encontrado.categoria && it.id != encontrado.id }
-                                    .take(10)
-                            } else {
-                                emptyList()
-                            }
+                        onSuccess = { (mangaEncontrado, recomendadosEncontrados) ->
+                            manga = mangaEncontrado
+                            recomendados = recomendadosEncontrados
                         },
                         onFailure = {
                             erro = "Não foi possível carregar o mangá."
@@ -367,6 +364,7 @@ fun NavGraph() {
 
             composable(Tela.Busca.rota) {
                 BuscaScreen(
+                    buscaViewModel = homeViewModel,
                     favoritoViewModel = favoritoViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
                     onMangaClick = { manga ->

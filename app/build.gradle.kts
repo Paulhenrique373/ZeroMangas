@@ -1,20 +1,9 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
-}
-
-// Lê chaves sensíveis de local.properties (arquivo NUNCA versionado, já está no .gitignore).
-// Isso evita hardcodar a chave pública do Supabase diretamente no código-fonte.
-val localProperties = Properties().apply {
-    val localFile = rootProject.file("local.properties")
-    if (localFile.exists()) {
-        localFile.inputStream().use { load(it) }
-    }
 }
 
 android {
@@ -29,20 +18,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // URL do projeto Supabase (não é segredo, pode ficar no código).
-        buildConfigField(
-            "String",
-            "SUPABASE_URL",
-            "\"https://znqceiplzfeexbjkgebm.supabase.co\""
-        )
-        // Chave pública/publishable do Supabase. Vem de local.properties (SUPABASE_ANON_KEY=...)
-        // e nunca é commitada.
-        buildConfigField(
-            "String",
-            "SUPABASE_ANON_KEY",
-            "\"${localProperties.getProperty("SUPABASE_ANON_KEY", "")}\""
-        )
     }
 
     buildTypes {
@@ -60,7 +35,6 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 }
 
