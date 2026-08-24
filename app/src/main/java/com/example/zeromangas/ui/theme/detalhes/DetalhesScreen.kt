@@ -13,14 +13,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,7 +64,7 @@ fun DetalhesScreen(
     favoritoViewModel: FavoritoViewModel,
     usuarioId: String,
     onVoltar: () -> Unit,
-    onAdicionarAoCarrinho: (Manga) -> Unit,
+    onAdicionarAoCarrinho: (Manga, Int) -> Unit,
     recomendados: List<Manga> = emptyList(),
     onMangaClick: (Manga) -> Unit = {}
 ) {
@@ -98,6 +103,12 @@ fun DetalhesScreen(
 
     val esgotado = manga.estoque <= 0
     val estoqueBaixo = manga.estoque in 1..5
+
+    // ETAPA 5 (Detalhes): quantidade escolhida antes de adicionar ao carrinho.
+    // Fica limitada ao estoque disponível pra não deixar o usuário pedir mais
+    // do que existe (o CartViewModel também valida isso, mas evitamos o aviso
+    // de estoque aparecendo sem necessidade).
+    var quantidade by remember(manga.id) { mutableIntStateOf(1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -274,16 +285,37 @@ fun DetalhesScreen(
             Spacer(modifier = Modifier.height(Spacing.md))
         }
 
-        // ---------- Botão fixo ----------
-        Box(
+        // ---------- Quantidade + Botão fixo ----------
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(Spacing.lg)
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md)
         ) {
+            if (!esgotado) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Quantidade",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextoSecundario
+                    )
+                    QuantidadeSelector(
+                        quantidade = quantidade,
+                        podeAumentar = quantidade < manga.estoque,
+                        onDiminuir = { if (quantidade > 1) quantidade-- },
+                        onAumentar = { if (quantidade < manga.estoque) quantidade++ }
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+
             PrimaryButton(
                 text = if (esgotado) "Produto esgotado" else "Adicionar ao Carrinho",
-                onClick = { onAdicionarAoCarrinho(manga) },
+                onClick = { onAdicionarAoCarrinho(manga, quantidade) },
                 enabled = !esgotado,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -331,6 +363,68 @@ private fun BadgeInfo(texto: String) {
             .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
     ) {
         Text(text = texto, style = MaterialTheme.typography.labelSmall, color = TextoSecundario)
+    }
+}
+
+/**
+ * Seletor "− quantidade +" usado antes do botão de adicionar ao carrinho.
+ * Local a esta tela por enquanto — se precisar em outro lugar (ex.: Carrinho
+ * já tem o seu próprio, em CartScreen), extrair para ui/components.
+ */
+@Composable
+private fun QuantidadeSelector(
+    quantidade: Int,
+    podeAumentar: Boolean,
+    onDiminuir: () -> Unit,
+    onAumentar: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(Spacing.radiusPill))
+            .background(FundoCard),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BotaoQuantidade(
+            icone = Icons.Default.Remove,
+            contentDescription = "Diminuir quantidade",
+            habilitado = quantidade > 1,
+            onClick = onDiminuir
+        )
+        Text(
+            text = quantidade.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            color = TextoPrincipal,
+            modifier = Modifier.padding(horizontal = Spacing.md)
+        )
+        BotaoQuantidade(
+            icone = Icons.Default.Add,
+            contentDescription = "Aumentar quantidade",
+            habilitado = podeAumentar,
+            onClick = onAumentar
+        )
+    }
+}
+
+@Composable
+private fun BotaoQuantidade(
+    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    habilitado: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(enabled = habilitado, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icone,
+            contentDescription = contentDescription,
+            tint = if (habilitado) RoxoNeonClaro else TextoSecundario.copy(alpha = 0.4f),
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 

@@ -404,14 +404,24 @@ fun CartItemCard(
             Spacer(modifier = Modifier.height(Spacing.sm))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                QuantidadeBotao(icone = Icons.Default.Remove, contentDescription = "Diminuir", onClick = onDiminuir)
+                QuantidadeBotao(
+                    icone = Icons.Default.Remove,
+                    contentDescription = "Diminuir",
+                    habilitado = true,
+                    onClick = onDiminuir
+                )
                 Text(
                     text = "${item.quantidade}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextoPrincipal,
                     modifier = Modifier.padding(horizontal = Spacing.sm)
                 )
-                QuantidadeBotao(icone = Icons.Default.Add, contentDescription = "Aumentar", onClick = onAumentar)
+                QuantidadeBotao(
+                    icone = Icons.Default.Add,
+                    contentDescription = "Aumentar",
+                    habilitado = item.quantidade < item.manga.estoque,
+                    onClick = onAumentar
+                )
             }
         }
 
@@ -429,6 +439,7 @@ fun CartItemCard(
 private fun QuantidadeBotao(
     icone: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
+    habilitado: Boolean = true,
     onClick: () -> Unit
 ) {
     Box(
@@ -436,10 +447,15 @@ private fun QuantidadeBotao(
             .size(26.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.background)
-            .clickable { onClick() },
+            .clickable(enabled = habilitado) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(imageVector = icone, contentDescription = contentDescription, tint = TextoPrincipal, modifier = Modifier.size(14.dp))
+        Icon(
+            imageVector = icone,
+            contentDescription = contentDescription,
+            tint = if (habilitado) TextoPrincipal else TextoSecundario.copy(alpha = 0.4f),
+            modifier = Modifier.size(14.dp)
+        )
     }
 }
 
@@ -458,4 +474,3 @@ fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null
             color = TextoSecundario
         )
     }
-}

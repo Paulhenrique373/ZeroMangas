@@ -276,8 +276,8 @@ fun NavGraph() {
                             favoritoViewModel = favoritoViewModel,
                             usuarioId = authRepository.currentUser?.uid.orEmpty(),
                             onVoltar = { navController.popBackStack() },
-                            onAdicionarAoCarrinho = { mangaSelecionado ->
-                                cartViewModel.adicionarItem(mangaSelecionado)
+                            onAdicionarAoCarrinho = { mangaSelecionado, quantidade ->
+                                repeat(quantidade) { cartViewModel.adicionarItem(mangaSelecionado) }
                                 navController.popBackStack()
                             },
                             onMangaClick = { mangaSelecionado ->

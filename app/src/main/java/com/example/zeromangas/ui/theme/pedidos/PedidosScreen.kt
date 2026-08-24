@@ -275,6 +275,13 @@ fun PedidoCard(
         HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
         Spacer(modifier = Modifier.height(Spacing.sm))
 
+        if (statusAtual != "Cancelado") {
+            AcompanhamentoPedido(statusAtual = statusAtual)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -328,5 +335,54 @@ fun PedidoCard(
                 }
             }
         )
+    }
+}
+
+/**
+ * Linha "Pedido realizado → Processando → Enviado → Entregue" mostrando em qual etapa
+ * o pedido está agora. Usa o mesmo [calcularStatusPedido] já calculado no card — não
+ * cria nenhum estado ou lógica nova, só desenha visualmente o que já existe.
+ */
+@Composable
+private fun AcompanhamentoPedido(statusAtual: String) {
+    val etapas = listOf("Pedido realizado", "Processando", "Enviado", "Entregue")
+    val indiceAtual = when (statusAtual) {
+        "Processando" -> 1
+        "Enviado" -> 2
+        "Entregue" -> 3
+        else -> 0
+    }
+
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        etapas.forEachIndexed { indice, etapa ->
+            val concluida = indice <= indiceAtual
+            val cor = if (concluida) RoxoNeonClaro else TextoSecundario.copy(alpha = 0.35f)
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(cor)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = etapa,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = cor,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+
+            if (indice < etapas.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier
+                        .weight(0.6f)
+                        .padding(bottom = 14.dp),
+                    color = if (indice < indiceAtual) RoxoNeonClaro else TextoSecundario.copy(alpha = 0.25f)
+                )
+            }
+        }
     }
 }

@@ -137,8 +137,17 @@ fun CheckoutScreen(
                             onValueChange = { cartViewModel.atualizarNumero(it) },
                             label = { Text("Número") },
                             singleLine = true,
+                            isError = numero.isBlank(),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        if (numero.isBlank()) {
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                text = "Informe o número para continuar.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                         Spacer(modifier = Modifier.height(Spacing.sm))
                         OutlinedTextField(
                             value = complemento,
@@ -218,7 +227,7 @@ fun CheckoutScreen(
                     PrimaryButton(
                         text = "Continuar para pagamento",
                         onClick = { etapa = EtapaCheckout.PAGAMENTO },
-                        enabled = frete != null,
+                        enabled = frete != null && numero.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

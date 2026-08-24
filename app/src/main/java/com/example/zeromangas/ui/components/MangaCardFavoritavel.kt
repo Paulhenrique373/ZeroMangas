@@ -78,6 +78,7 @@ fun MangaCardFavoritavel(
         }
 
         if (onAdicionarAoCarrinho != null) {
+            val esgotado = manga.estoque <= 0
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -85,13 +86,17 @@ fun MangaCardFavoritavel(
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-                    .clickable { onAdicionarAoCarrinho() },
+                    .clickable(enabled = !esgotado) { onAdicionarAoCarrinho() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.AddShoppingCart,
-                    contentDescription = "Adicionar ao carrinho",
-                    tint = MaterialTheme.colorScheme.primary,
+                    contentDescription = if (esgotado) "Produto esgotado" else "Adicionar ao carrinho",
+                    tint = if (esgotado) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
                     modifier = Modifier.size(18.dp)
                 )
             }

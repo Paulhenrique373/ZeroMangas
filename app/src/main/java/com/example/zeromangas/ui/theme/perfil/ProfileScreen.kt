@@ -18,8 +18,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,6 +65,7 @@ fun ProfileScreen(
     var fotoUrl by remember { mutableStateOf("") }
     var fotoLocalPreview by remember { mutableStateOf<Uri?>(null) }
     var jaCarregouCampos by remember { mutableStateOf(false) }
+    var mostrarConfirmacaoSair by remember { mutableStateOf(false) }
 
     val seletorImagem = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -291,12 +291,33 @@ fun ProfileScreen(
                     corTexto = VermelhoErro,
                     corIcone = VermelhoErro,
                     mostrarSeta = false,
-                    onClick = onLogoutClick
+                    onClick = { mostrarConfirmacaoSair = true }
                 )
             }
 
             Spacer(modifier = Modifier.height(Spacing.xl))
         }
+    }
+
+    if (mostrarConfirmacaoSair) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacaoSair = false },
+            title = { Text("Sair da conta") },
+            text = { Text("Tem certeza que deseja sair? Você vai precisar entrar novamente para acessar seu perfil.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarConfirmacaoSair = false
+                    onLogoutClick()
+                }) {
+                    Text("Sim, sair", color = VermelhoErro)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarConfirmacaoSair = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
