@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -14,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,14 +21,13 @@ import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.repository.OrderRepository
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.LoadingState
+import com.example.zeromangas.ui.components.StatusBadge
 import com.example.zeromangas.ui.components.formatarPrecoBr
-import com.example.zeromangas.ui.theme.AmareloDestaque
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.RoxoNeonClaro
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
-import com.example.zeromangas.ui.theme.VerdeSucesso
 import com.example.zeromangas.ui.theme.VermelhoErro
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -190,38 +187,6 @@ private fun calcularStatusPedido(pedido: Order, agora: Long): String {
         minutosDesdeACompra < 2 -> "Processando"
         minutosDesdeACompra in 2..4 -> "Enviado"
         else -> "Entregue"
-    }
-}
-
-@Composable
-private fun corDoStatus(status: String): Color {
-    return when (status) {
-        "Processando" -> AmareloDestaque
-        "Enviado" -> RoxoNeonClaro
-        "Cancelado" -> VermelhoErro
-        else -> VerdeSucesso // Entregue
-    }
-}
-
-/** Badge "● Status" com uma bolinha colorida, no padrão pedido no planejamento (🟡 Preparando). */
-@Composable
-private fun StatusBadge(status: String) {
-    val cor = corDoStatus(status)
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(Spacing.radiusPill))
-            .background(cor.copy(alpha = 0.15f))
-            .padding(horizontal = Spacing.sm, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(cor)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(text = status, style = MaterialTheme.typography.labelSmall, color = cor, fontWeight = FontWeight.Medium)
     }
 }
 

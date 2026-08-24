@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Remove
@@ -85,20 +84,21 @@ fun CartScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
 
+        // ETAPA 3 (navegação): Carrinho é uma aba principal (acessível pelo BottomNavBar),
+        // então não mostra mais seta de "voltar" no topo — isso é padrão de tela de aba,
+        // igual Home e Busca. `onVoltar` continua existindo (usado pelo botão físico/gesto
+        // de voltar do Android via BackHandler implícito do NavHost), só não tem mais
+        // botão visual redundante com a barra inferior.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onVoltar) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
-            }
             Text(
                 text = "Meu Carrinho",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal,
-                modifier = Modifier.padding(start = Spacing.sm)
+                color = TextoPrincipal
             )
         }
 

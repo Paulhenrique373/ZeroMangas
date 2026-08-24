@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 enum class TipoOrdenacao {
-    NENHUMA, MENOR_PRECO, MAIOR_PRECO, A_Z, Z_A
+    NENHUMA, MENOR_PRECO, MAIOR_PRECO, A_Z, Z_A, MAIS_VENDIDOS, MAIS_RECENTES
 }
 
 /**
@@ -70,6 +70,43 @@ class HomeViewModel : ViewModel() {
         .map { it.filter { manga -> manga.emDestaque } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * ETAPA 2 (Home): "🆕 Lançamentos" da Home.
+     *
+     * O model [Manga] ainda não tem uma coluna de data de criação no Supabase,
+     * então não dá pra ordenar por "mais recente" de verdade sem inventar um dado
+     * que não existe. Como heurística temporária e não-destrutiva, usamos os
+     * últimos itens retornados pela listagem do catálogo (excluindo os que já
+     * aparecem em "Mais vendidos") como aproximação de lançamentos.
+     * Quando o banco ganhar uma coluna real (ex: "criado_em"), é só trocar o
+     * "takeLast" por uma ordenação por essa data — o resto da Home não muda.
+     */
+    val mangasLancamentos: StateFlow<List<Manga>> = _todosMangas
+        .map { lista ->
+            lista.filterNot { it.emDestaque }.takeLast(10).reversed()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * ETAPA 2 (Home): "✨ Você também pode gostar".
+     *
+     * Sem um histórico de navegação ou preferências salvas do usuário, uma
+     * recomendação "personalizada" de verdade ainda não é possível sem inventar
+     * dados. Como aproximação razoável (mesmo padrão já usado em
+     * DetalhesScreen/MangaRepository.buscarMangaComRecomendados), sugerimos
+     * produtos da mesma categoria do mangá em destaque do banner.
+     */
+    val mangasRecomendados: StateFlow<List<Manga>> = combine(
+        _todosMangas, mangasEmDestaque
+    ) { todos, destaques ->
+        val categoriaReferencia = destaques.firstOrNull()?.categoria
+        if (categoriaReferencia.isNullOrBlank()) {
+            emptyList()
+        } else {
+            todos.filter { it.categoria == categoriaReferencia && !it.emDestaque }.take(10)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Combina min/max em um único fluxo para poder juntar com os demais filtros (combine tem limite de 5 fluxos)
     private val faixaDePreco = combine(_precoMinimo, _precoMaximo) { min, max -> min to max }
 
@@ -118,6 +155,16 @@ class HomeViewModel : ViewModel() {
             TipoOrdenacao.MAIOR_PRECO -> resultado.sortedByDescending { it.preco }
             TipoOrdenacao.A_Z -> resultado.sortedBy { it.nome }
             TipoOrdenacao.Z_A -> resultado.sortedByDescending { it.nome }
+            // ETAPA 4 (Busca): sem contagem real de vendas ainda, aproximamos "mais
+            // vendidos" pelo mesmo sinal já usado na Home (manga.emDestaque).
+            TipoOrdenacao.MAIS_VENDIDOS -> resultado.sortedByDescending { it.emDestaque }
+            // ETAPA 4 (Busca): sem coluna de data de criação no banco, aproximamos
+            // "mais recentes" pela ordem em que o catálogo foi retornado do Supabase
+            // (mesma heurística do "🆕 Lançamentos" da Home, na ETAPA 2).
+            TipoOrdenacao.MAIS_RECENTES -> {
+                val ranking = todosMangas.withIndex().associate { (indice, manga) -> manga.id to indice }
+                resultado.sortedByDescending { ranking[it.id] ?: -1 }
+            }
             TipoOrdenacao.NENHUMA -> resultado
         }
 

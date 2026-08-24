@@ -188,16 +188,37 @@ fun NavGraph() {
                         navController.navigate(Tela.Detalhes.criarRota(manga.id))
                     },
                     onCarrinhoClick = {
-                        navController.navigate(Tela.Carrinho.rota)
+                        // ETAPA 3 (navegação): mesmo padrão de troca de aba usado pelo
+                        // BottomNavBar (popUpTo + launchSingleTop), já que o Carrinho
+                        // também é uma aba principal — evita empilhar a mesma tela
+                        // duas vezes quando o usuário entra por aqui e depois troca de aba.
+                        navController.navigate(Tela.Carrinho.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
                     },
                     onPedidosClick = {
+                        // Pedidos não é uma aba do BottomNavBar, então continua uma
+                        // navegação normal (empilhada), com seta de voltar na própria tela.
                         navController.navigate(Tela.Pedidos.rota)
                     },
                     onPerfilClick = {
-                        navController.navigate(Tela.Perfil.rota)
+                        navController.navigate(Tela.Perfil.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
                     },
                     onFavoritosClick = {
-                        navController.navigate(Tela.Favoritos.rota)
+                        navController.navigate(Tela.Favoritos.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
+                    },
+                    onBuscaClick = {
+                        navController.navigate(Tela.Busca.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
                     },
                     onLogoutClick = {
                         authViewModel.logout()
@@ -332,7 +353,12 @@ fun NavGraph() {
                     authViewModel = authViewModel,
                     onVoltar = { navController.popBackStack() },
                     onPedidosClick = { navController.navigate(Tela.Pedidos.rota) },
-                    onFavoritosClick = { navController.navigate(Tela.Favoritos.rota) },
+                    onFavoritosClick = {
+                        navController.navigate(Tela.Favoritos.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
+                    },
                     onLogoutClick = {
                         authViewModel.logout()
                         cartViewModel.limparCarrinho()

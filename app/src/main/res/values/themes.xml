@@ -1,5 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.ZeroMangas" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--  ETAPA 1 (design system): antes herdava de Theme.Material.Light, então a janela
+             nativa do Android (visível por uma fração de segundo antes do Compose carregar,
+             inclusive na futura Splash) piscava branco. Agora herda do tema escuro do sistema
+             e usa o mesmo fundo escuro do app (0xFF0F0F12 = FundoPrincipal em Color.kt).  -->
+    <style name="Theme.ZeroMangas" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0F0F12</item>
+        <item name="android:statusBarColor">#FF0F0F12</item>
+        <item name="android:navigationBarColor">#FF0F0F12</item>
+    </style>
 </resources>

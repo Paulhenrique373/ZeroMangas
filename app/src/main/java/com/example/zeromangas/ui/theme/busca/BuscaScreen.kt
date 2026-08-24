@@ -12,10 +12,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -206,8 +207,11 @@ fun BuscaScreen(
             carregando && mangas.isEmpty() -> LoadingState(modifier = Modifier.weight(1f))
 
             erro != null && mangas.isEmpty() -> EmptyState(
-                titulo = erro ?: "",
-                modifier = Modifier.weight(1f)
+                titulo = "Não foi possível carregar",
+                subtitulo = erro,
+                modifier = Modifier.weight(1f),
+                textoAcao = "Tentar novamente",
+                onAcaoClick = { buscaViewModel.carregarDados() }
             )
 
             !jaPesquisou -> {
@@ -278,7 +282,21 @@ fun BuscaScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(resultadosFinais, key = { it.id }) { manga ->
+                    // ETAPA 4 (Busca): "estado bonito" de resultado encontrado —
+                    // mostra quantos itens bateram com a busca/filtros atuais.
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = if (resultadosFinais.size == 1) {
+                                "1 resultado encontrado"
+                            } else {
+                                "${resultadosFinais.size} resultados encontrados"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = Spacing.xs)
+                        )
+                    }
+                    gridItems(resultadosFinais, key = { it.id }) { manga ->
                         MangaCardFavoritavel(
                             manga = manga,
                             isFavorito = manga.id in favoritosIds,

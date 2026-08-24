@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.Manga
+import com.example.zeromangas.ui.theme.BordaSutil
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
@@ -74,6 +76,7 @@ fun MangaCard(
                 .width(Spacing.mangaCoverWidth)
                 .clip(RoundedCornerShape(Spacing.radiusMedium))
                 .background(FundoCard)
+                .border(1.dp, BordaSutil, RoundedCornerShape(Spacing.radiusMedium))
         ) {
             AsyncImage(
                 model = manga.imagemUrl,

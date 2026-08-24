@@ -1,6 +1,7 @@
 package com.example.zeromangas.ui.theme.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,12 +12,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +37,7 @@ import com.example.zeromangas.ui.components.MangaCardFavoritavel
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.SecondaryButton
 import com.example.zeromangas.ui.components.SectionHeader
+import com.example.zeromangas.ui.theme.BordaSutil
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
@@ -56,27 +56,20 @@ fun HomeScreen(
     onPedidosClick: () -> Unit = {},
     onPerfilClick: () -> Unit = {},
     onFavoritosClick: () -> Unit = {},
+    onBuscaClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
-    val mangas by homeViewModel.mangasFiltrados.collectAsState()
     val mangasEmDestaque by homeViewModel.mangasEmDestaque.collectAsState()
+    val mangasLancamentos by homeViewModel.mangasLancamentos.collectAsState()
+    val mangasRecomendados by homeViewModel.mangasRecomendados.collectAsState()
     val categorias by homeViewModel.categorias.collectAsState()
-    val marcas by homeViewModel.marcas.collectAsState()
     val carregando by homeViewModel.carregando.collectAsState()
     val erro by homeViewModel.erro.collectAsState()
-    val textoBusca by homeViewModel.textoBusca.collectAsState()
     val categoriaSelecionada by homeViewModel.categoriaSelecionada.collectAsState()
-    val marcaSelecionada by homeViewModel.marcaSelecionada.collectAsState()
-    val precoMinimo by homeViewModel.precoMinimo.collectAsState()
-    val precoMaximo by homeViewModel.precoMaximo.collectAsState()
-    val ordenacao by homeViewModel.ordenacao.collectAsState()
-    val quantidadeFiltrosAtivos by homeViewModel.quantidadeFiltrosAtivos.collectAsState()
     val itensCarrinho by cartViewModel.itens.collectAsState()
     val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
 
-    var mostrarFiltros by remember { mutableStateOf(false) }
-    var mostrarOrdenacao by remember { mutableStateOf(false) }
     var mostrarConfirmacaoLogout by remember { mutableStateOf(false) }
 
     LaunchedEffect(usuarioId) {
@@ -100,7 +93,7 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "ZeroMangás",
+                    text = "O que você quer ler hoje?",
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -160,50 +153,40 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(Spacing.md))
 
         // ---- Busca ----
-        OutlinedTextField(
-            value = textoBusca,
-            onValueChange = { homeViewModel.buscar(it) },
-            placeholder = { Text("Buscar por nome, marca ou volume...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            shape = RoundedCornerShape(Spacing.radiusSmall),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.md)
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.sm))
-
-        // ---- Filtros / Ordenar ----
+        // ETAPA 2 (Home): antes esse campo filtrava a própria Home (duplicando a
+        // tela de Busca). Agora ele é só um atalho visual: ao tocar, ele NÃO edita
+        // texto aqui — leva direto para a tela de Busca (que já tem toda a lógica
+        // de filtros/ordenação), igual ao padrão de apps de loja (Amazon, Play Store etc).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = Spacing.md)
+                .height(52.dp)
+                .clip(RoundedCornerShape(Spacing.radiusSmall))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, BordaSutil, RoundedCornerShape(Spacing.radiusSmall))
+                .clickable { onBuscaClick() }
                 .padding(horizontal = Spacing.md),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedButton(
-                onClick = { mostrarFiltros = true },
-                shape = RoundedCornerShape(Spacing.radiusSmall),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(if (quantidadeFiltrosAtivos > 0) "Filtros ($quantidadeFiltrosAtivos)" else "Filtros")
-            }
-            OutlinedButton(
-                onClick = { mostrarOrdenacao = true },
-                shape = RoundedCornerShape(Spacing.radiusSmall),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Ordenar")
-            }
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            Text(
+                text = "Buscar por nome, marca ou volume...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         Spacer(modifier = Modifier.height(Spacing.md))
 
         // ---- Categorias ----
+        // Tocar numa categoria já seleciona ela no HomeViewModel (compartilhado com
+        // a tela de Busca) e leva para lá, já mostrando o resultado filtrado.
         LazyRow(
             contentPadding = PaddingValues(horizontal = Spacing.md),
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
@@ -212,7 +195,10 @@ fun HomeScreen(
                 CategoryChip(
                     texto = categoria,
                     selecionado = categoriaSelecionada == categoria,
-                    onClick = { homeViewModel.selecionarCategoria(categoria) }
+                    onClick = {
+                        homeViewModel.selecionarCategoria(categoria)
+                        onBuscaClick()
+                    }
                 )
             }
         }
@@ -221,11 +207,11 @@ fun HomeScreen(
 
         // ---- Conteúdo principal ----
         when {
-            carregando && mangas.isEmpty() -> {
+            carregando && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
                 LoadingState(modifier = Modifier.weight(1f))
             }
 
-            erro != null && mangas.isEmpty() -> {
+            erro != null && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -247,10 +233,10 @@ fun HomeScreen(
                 }
             }
 
-            mangas.isEmpty() -> {
+            mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
                 EmptyState(
-                    titulo = "Nenhum mangá encontrado",
-                    subtitulo = "Tente ajustar sua busca ou seus filtros.",
+                    titulo = "Catálogo vazio",
+                    subtitulo = "Ainda não há mangás cadastrados no momento.",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -276,7 +262,7 @@ fun HomeScreen(
                     // (não há contagem real de vendas hoje)
                     if (mangasEmDestaque.isNotEmpty()) {
                         item {
-                            SectionHeader(titulo = "🔥 Mais vendidos")
+                            SectionHeader(titulo = "🔥 Mais vendidos", onVerTodosClick = onBuscaClick)
                         }
                         item {
                             LazyRow(
@@ -295,58 +281,52 @@ fun HomeScreen(
                         }
                     }
 
-                    item {
-                        SectionHeader(titulo = "Catálogo")
+                    // Lançamentos (heurística: últimos itens do catálogo, ver HomeViewModel)
+                    if (mangasLancamentos.isNotEmpty()) {
+                        item {
+                            SectionHeader(titulo = "🆕 Lançamentos", onVerTodosClick = onBuscaClick)
+                        }
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = Spacing.md),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                items(mangasLancamentos, key = { "lancamento_${it.id}" }) { manga ->
+                                    MangaCardFavoritavel(
+                                        manga = manga,
+                                        isFavorito = manga.id in favoritosIds,
+                                        onClick = { onMangaClick(manga) },
+                                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+                                    )
+                                }
+                            }
+                        }
                     }
 
-                    // Catálogo completo, em linhas de 2 cards
-                    items(mangas.chunked(2), key = { row -> row.joinToString { it.id } }) { linha ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Spacing.md),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                        ) {
-                            linha.forEach { manga ->
-                                MangaCardFavoritavel(
-                                    manga = manga,
-                                    isFavorito = manga.id in favoritosIds,
-                                    onClick = { onMangaClick(manga) },
-                                    onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
-                                )
+                    // Recomendações: mesma categoria do mangá em destaque (ver HomeViewModel)
+                    if (mangasRecomendados.isNotEmpty()) {
+                        item {
+                            SectionHeader(titulo = "✨ Você também pode gostar")
+                        }
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = Spacing.md),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                items(mangasRecomendados, key = { "recomendado_${it.id}" }) { manga ->
+                                    MangaCardFavoritavel(
+                                        manga = manga,
+                                        isFavorito = manga.id in favoritosIds,
+                                        onClick = { onMangaClick(manga) },
+                                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-
-    if (mostrarFiltros) {
-        FiltrosBottomSheet(
-            categorias = categorias,
-            marcas = marcas,
-            categoriaSelecionada = categoriaSelecionada,
-            marcaSelecionada = marcaSelecionada,
-            precoMinimo = precoMinimo,
-            precoMaximo = precoMaximo,
-            onCategoriaChange = { homeViewModel.definirCategoria(it) },
-            onMarcaChange = { homeViewModel.definirMarca(it) },
-            onFaixaPrecoChange = { min, max -> homeViewModel.definirFaixaDePreco(min, max) },
-            onLimpar = { homeViewModel.limparFiltros() },
-            onFechar = { mostrarFiltros = false }
-        )
-    }
-
-    if (mostrarOrdenacao) {
-        OrdenacaoBottomSheet(
-            ordenacaoAtual = ordenacao,
-            onSelecionar = {
-                homeViewModel.ordenarPor(it)
-                mostrarOrdenacao = false
-            },
-            onFechar = { mostrarOrdenacao = false }
-        )
     }
 
     if (mostrarConfirmacaoLogout) {
@@ -567,9 +547,11 @@ fun OrdenacaoBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState()
     val opcoes = listOf(
-        TipoOrdenacao.NENHUMA to "Relevância",
+        TipoOrdenacao.NENHUMA to "Mais relevantes",
         TipoOrdenacao.MENOR_PRECO to "Menor preço",
         TipoOrdenacao.MAIOR_PRECO to "Maior preço",
+        TipoOrdenacao.MAIS_VENDIDOS to "Mais vendidos",
+        TipoOrdenacao.MAIS_RECENTES to "Mais recentes",
         TipoOrdenacao.A_Z to "A-Z",
         TipoOrdenacao.Z_A to "Z-A"
     )

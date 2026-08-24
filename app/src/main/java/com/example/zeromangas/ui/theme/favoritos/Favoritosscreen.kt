@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -59,20 +58,18 @@ fun FavoritosScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
 
+        // ETAPA 3 (navegação): Favoritos é aba principal do BottomNavBar, então sem
+        // seta de voltar redundante no topo (mesmo padrão aplicado no Carrinho e Perfil).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onVoltar) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
-            }
             Text(
                 text = "Meus Favoritos",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal,
-                modifier = Modifier.padding(start = Spacing.sm)
+                color = TextoPrincipal
             )
         }
 

@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
@@ -102,20 +101,18 @@ fun ProfileScreen(
             .verticalScroll(rememberScrollState())
     ) {
 
+        // ETAPA 3 (navegação): Perfil é aba principal do BottomNavBar, então sem
+        // seta de voltar redundante no topo (mesmo padrão do Carrinho e Favoritos).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onVoltar) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
-            }
             Text(
                 text = "Meu Perfil",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal,
-                modifier = Modifier.padding(start = Spacing.sm)
+                color = TextoPrincipal
             )
         }
 
