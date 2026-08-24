@@ -1,23 +1,37 @@
 package com.example.zeromangas.ui.theme.register
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.zeromangas.ui.components.PrimaryButton
+import com.example.zeromangas.ui.theme.FundoPrincipal
+import com.example.zeromangas.ui.theme.RoxoNeon
+import com.example.zeromangas.ui.theme.Spacing
+import com.example.zeromangas.ui.theme.TextoSecundario
+import com.example.zeromangas.ui.theme.login.CampoSenha
+import com.example.zeromangas.ui.theme.login.LogoZeroMangas
 import com.example.zeromangas.viewmodel.AuthState
 import com.example.zeromangas.viewmodel.AuthViewModel
 
+/**
+ * ETAPA 11 (polimento, parte 4): mesmo tratamento do [com.example.zeromangas.ui.theme.login.LoginScreen]
+ * — reaproveita [LogoZeroMangas] e [CampoSenha] pra não duplicar código entre as duas telas.
+ * Lógica 100% preservada: continua chamando authViewModel.cadastrar(nome, email, senha).
+ *
+ * O campo "Confirmar senha" e a recuperação de senha ("Esqueci minha senha") do plano original
+ * NÃO foram adicionados aqui — são funcionalidades novas (exigiriam validação/lógica nova no
+ * ViewModel), fora do escopo de polimento da Etapa 11. Ficam como sugestão pra uma etapa futura.
+ */
 @Composable
 fun RegisterScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -27,6 +41,7 @@ fun RegisterScreen(
     var nome by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
+    var senhaVisivel by remember { mutableStateOf(false) }
 
     val authState by authViewModel.authState.collectAsState()
 
@@ -40,28 +55,25 @@ fun RegisterScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .background(FundoPrincipal)
+            .padding(Spacing.lg),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "Criar conta",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            LogoZeroMangas()
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
             Text(
                 text = "Junte-se ao ZeroMangás",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground
+                color = TextoSecundario
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(Spacing.xl))
 
             OutlinedTextField(
                 value = nome,
@@ -72,7 +84,7 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             OutlinedTextField(
                 value = email,
@@ -84,20 +96,16 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
-            OutlinedTextField(
-                value = senha,
-                onValueChange = { senha = it },
-                label = { Text("Senha") },
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+            CampoSenha(
+                senha = senha,
+                onSenhaChange = { senha = it },
+                visivel = senhaVisivel,
+                onToggleVisivel = { senhaVisivel = !senhaVisivel }
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
             if (authState is AuthState.Erro) {
                 Text(
@@ -107,32 +115,23 @@ fun RegisterScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
-            Button(
+            PrimaryButton(
+                text = "Cadastrar",
                 onClick = { authViewModel.cadastrar(nome, email, senha) },
                 enabled = authState !is AuthState.Loading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                if (authState is AuthState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Cadastrar")
-                }
-            }
+                loading = authState is AuthState.Loading,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             TextButton(onClick = onVoltarParaLogin) {
-                Text("Já tem conta? Entrar")
+                Text("Já tem conta? Entrar", color = RoxoNeon)
             }
         }
     }

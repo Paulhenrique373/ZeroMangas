@@ -474,3 +474,4 @@ fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null
             color = TextoSecundario
         )
     }
+}
