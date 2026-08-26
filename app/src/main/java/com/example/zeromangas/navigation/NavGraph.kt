@@ -46,8 +46,11 @@ import com.example.zeromangas.ui.theme.checkout.CheckoutScreen
 import com.example.zeromangas.ui.theme.confirmacao.ConfirmacaoScreen
 import com.example.zeromangas.ui.theme.pedidos.PedidosScreen
 import com.example.zeromangas.ui.theme.perfil.ProfileScreen
+import com.example.zeromangas.ui.theme.editarperfil.EditarPerfilScreen
+import com.example.zeromangas.ui.theme.enderecos.EnderecosScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
+import com.example.zeromangas.viewmodel.EnderecoViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
 
@@ -59,6 +62,8 @@ sealed class Tela(val rota: String) {
     object Checkout : Tela("checkout")
     object Pedidos : Tela("pedidos")
     object Perfil : Tela("perfil")
+    object EditarPerfil : Tela("editar_perfil")
+    object Enderecos : Tela("enderecos")
     object Favoritos : Tela("favoritos")
     object Busca : Tela("busca")
     object Detalhes : Tela("detalhes/{mangaId}") {
@@ -359,6 +364,12 @@ fun NavGraph() {
                             launchSingleTop = true
                         }
                     },
+                    onEditarPerfilClick = {
+                        navController.navigate(Tela.EditarPerfil.rota)
+                    },
+                    onEnderecosClick = {
+                        navController.navigate(Tela.Enderecos.rota)
+                    },
                     onLogoutClick = {
                         authViewModel.logout()
                         cartViewModel.limparCarrinho()
@@ -367,6 +378,21 @@ fun NavGraph() {
                             popUpTo(Tela.Home.rota) { inclusive = true }
                         }
                     }
+                )
+            }
+
+            composable(Tela.EditarPerfil.rota) {
+                EditarPerfilScreen(
+                    authViewModel = authViewModel,
+                    onVoltar = { navController.popBackStack() }
+                )
+            }
+
+            composable(Tela.Enderecos.rota) {
+                val enderecoViewModel: EnderecoViewModel = viewModel()
+                EnderecosScreen(
+                    enderecoViewModel = enderecoViewModel,
+                    onVoltar = { navController.popBackStack() }
                 )
             }
 

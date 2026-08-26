@@ -14,7 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
@@ -42,10 +44,8 @@ import com.example.zeromangas.viewmodel.UploadFotoState
 /**
  * Tela de perfil. Toda a lógica (carregar usuário, editar nome, trocar foto via
  * Supabase Storage) continua 100% no [AuthViewModel] já existente — só o visual muda,
- * agora com o design system, e o menu ganhou atalhos reais para as telas que já existem
- * (Pedidos, Favoritos, Sair). Não incluí "Endereços", "Cupons", "Configurações" ou
- * "Notificações" do planejamento original porque essas telas ainda não existem no
- * projeto — um atalho pra elas ficaria quebrado.
+ * agora com o design system, e o menu tem atalhos reais para Pedidos, Favoritos,
+ * Editar perfil completo, Meus Endereços e Sair.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +54,8 @@ fun ProfileScreen(
     onVoltar: () -> Unit,
     onPedidosClick: () -> Unit = {},
     onFavoritosClick: () -> Unit = {},
+    onEditarPerfilClick: () -> Unit = {},
+    onEnderecosClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -274,6 +276,18 @@ fun ProfileScreen(
                     icone = Icons.Default.Favorite,
                     rotulo = "Meus favoritos",
                     onClick = onFavoritosClick
+                )
+                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.12f))
+                ItemMenuPerfil(
+                    icone = Icons.Default.Edit,
+                    rotulo = "Editar perfil completo",
+                    onClick = onEditarPerfilClick
+                )
+                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.12f))
+                ItemMenuPerfil(
+                    icone = Icons.Default.LocationOn,
+                    rotulo = "Meus endereços",
+                    onClick = onEnderecosClick
                 )
             }
 

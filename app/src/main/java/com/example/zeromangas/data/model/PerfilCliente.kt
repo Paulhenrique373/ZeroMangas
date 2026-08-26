@@ -2,8 +2,8 @@ package com.example.zeromangas.data.model
 
 /**
  * Dados do perfil que vivem no Supabase (tabelas "usuarios" + "clientes"),
- * carregados a partir do firebase_uid do usuário logado. Complementa o
- * [User], que tem só o que o Firebase Auth guarda (uid, nome, email, foto).
+ * carregados a partir do uid do usuário logado no Supabase Auth. Complementa
+ * o [User], que tem só o que o Auth guarda (uid, nome, email, foto).
  */
 data class PerfilCliente(
     val usuarioId: String = "",

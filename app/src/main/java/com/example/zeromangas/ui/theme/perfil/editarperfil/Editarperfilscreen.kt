@@ -46,7 +46,7 @@ private val OPCOES_GENERO = listOf("Prefiro não informar", "Feminino", "Masculi
  * Tela completa de edição de perfil. Reaproveita o [AuthViewModel] já existente
  * (upload de foto, atualização de nome — agora persistido no Supabase também) e
  * adiciona os campos novos (telefone, CPF, bio, gênero, nascimento) + troca de
- * e-mail e senha via Firebase Auth. Não mexe em nenhuma lógica de pedidos/carrinho.
+ * e-mail e senha via Supabase Auth. Não mexe em nenhuma lógica de pedidos/carrinho.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

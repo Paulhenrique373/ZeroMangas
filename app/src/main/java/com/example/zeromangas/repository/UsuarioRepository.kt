@@ -66,10 +66,14 @@ private val jsonRpc = Json { encodeDefaults = true }
 private val jsonRpcOmitindoNulos = Json { encodeDefaults = false; explicitNulls = false }
 
 /**
- * Sincroniza o usuário logado no Firebase com as tabelas "usuarios", "clientes" e
- * "usuario_perfil" do Supabase. Deve ser chamado após cadastro e após login
- * bem-sucedidos, já que o Postgres não tem visibilidade automática de quem loga
- * via Firebase Auth.
+ * Sincroniza o usuário logado no Supabase Auth com as tabelas "usuarios",
+ * "clientes" e "usuario_perfil" do banco. Deve ser chamado após cadastro e
+ * após login bem-sucedidos.
+ *
+ * Os parâmetros/colunas ainda se chamam "p_firebase_uid"/"firebase_uid" no
+ * banco (histórico da época em que a auth era Firebase) — hoje eles recebem
+ * o id (uuid) do usuário no Supabase Auth. Renomear exigiria migração de
+ * schema; como é só um nome de coluna/parâmetro, mantivemos como está.
  *
  * Todas as operações passam por funções RPC (security definer) em vez de
  * inserts/updates diretos nas tabelas, porque elas têm RLS habilitada sem
@@ -92,7 +96,7 @@ class UsuarioRepository {
     }
 
     /**
-     * Busca o id do cliente (tabela "clientes") a partir do UID do Firebase,
+     * Busca o id do cliente (tabela "clientes") a partir do UID do Supabase Auth,
      * via a função "buscar_cliente_id".
      */
     suspend fun buscarClienteId(firebaseUid: String): Result<String> {

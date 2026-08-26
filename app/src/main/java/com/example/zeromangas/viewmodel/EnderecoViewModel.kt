@@ -35,8 +35,8 @@ sealed class BuscaCepState {
 /**
  * Tela "Meus Endereços": lista, cria, edita, exclui e define o endereço
  * padrão do cliente logado. O [clienteId] é resolvido uma vez (a partir do
- * uid do Firebase) e reaproveitado nas chamadas seguintes, mesmo padrão já
- * usado no checkout ([com.example.zeromangas.viewmodel.CartViewModel]).
+ * uid do Supabase Auth) e reaproveitado nas chamadas seguintes, mesmo padrão
+ * já usado no checkout ([com.example.zeromangas.viewmodel.CartViewModel]).
  */
 class EnderecoViewModel : ViewModel() {
 

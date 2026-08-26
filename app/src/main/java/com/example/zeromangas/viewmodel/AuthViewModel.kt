@@ -42,8 +42,8 @@ sealed class PerfilCompletoState {
 }
 
 /**
- * Estado da troca de e-mail/senha, que no Firebase exige reautenticação
- * (confirmar a senha atual) antes de aplicar a mudança em si.
+ * Estado da troca de e-mail/senha. Antes de aplicar a mudança em si, pedimos
+ * a senha atual e confirmamos com o Supabase Auth (ver [AuthRepository.reautenticar]).
  */
 sealed class CredenciaisState {
     object Idle : CredenciaisState()
@@ -199,9 +199,9 @@ class AuthViewModel : ViewModel() {
     }
 
     /**
-     * Salva a edição de perfil inteira: nome (Firebase Auth + Supabase),
-     * foto (Firebase Auth + Supabase) e os campos que só existem no Supabase
-     * (telefone, cpf, bio, gênero, nascimento).
+     * Salva a edição de perfil inteira: nome e foto (Supabase Auth
+     * user_metadata + tabela "clientes") e os campos que só existem no
+     * Supabase (telefone, cpf, bio, gênero, nascimento).
      */
     fun salvarPerfilCompleto(
         nome: String,
@@ -225,8 +225,9 @@ class AuthViewModel : ViewModel() {
 
         _perfilCompletoState.value = PerfilCompletoState.Loading
         viewModelScope.launch {
-            // Mantém o Firebase Auth (nome/foto exibidos no app) em sincronia,
-            // mas quem manda pro checkout/pedidos/etc é sempre o Supabase.
+            // Mantém o user_metadata do Supabase Auth (nome/foto exibidos no app)
+            // em sincronia, mas quem manda pro checkout/pedidos/etc é sempre a
+            // tabela "clientes".
             repository.atualizarPerfil(nome, fotoUrl)
 
             val resultado = usuarioRepository.atualizarPerfilCompleto(
@@ -258,9 +259,9 @@ class AuthViewModel : ViewModel() {
     }
 
     /**
-     * Troca o e-mail de login. O Firebase manda um link de confirmação pro
-     * e-mail NOVO — a troca só vale depois que o usuário clicar nesse link,
-     * então avisa isso na tela em vez de tratar como "já trocado".
+     * Troca o e-mail de login. O Supabase Auth manda um link de confirmação
+     * pro e-mail NOVO — a troca só vale depois que o usuário clicar nesse
+     * link, então avisa isso na tela em vez de tratar como "já trocado".
      */
     fun alterarEmail(senhaAtual: String, novoEmail: String) {
         if (senhaAtual.isBlank() || novoEmail.isBlank()) {

@@ -3,7 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.google.services)
 }
 
 android {
@@ -32,6 +31,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Exigido pelo módulo Auth do supabase-kt: a doc oficial avisa que ele
+        // só roda "puro" a partir do minSdk 26; abaixo disso precisa disso aqui.
+        // Sem isso o app compila normal, mas pode crashar em runtime em
+        // aparelhos com Android < 8.0 ao usar telas de login/cadastro.
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -60,19 +64,18 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
-    implementation("com.google.firebase:firebase-auth")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
-
     // Carregamento de imagens da internet
     implementation("io.coil-kt:coil-compose:2.6.0")
 
-    // Supabase Storage (upload/URL pública das fotos de perfil no bucket "avatars"),
+    // Supabase Auth (login/cadastro/troca de e-mail e senha — substitui o Firebase Auth),
+    // Storage (upload/URL pública das fotos de perfil no bucket "avatars"),
     // Postgrest (banco de dados relacional: produtos, pedidos, favoritos, cupons) e
     // Realtime (notificações ao vivo: promoção/estoque de favoritos, sem precisar
     // ficar consultando o banco em loop)
     implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.auth) {
+        exclude(group = "androidx.browser", module = "browser")
+    }
     implementation(libs.supabase.storage) {
         exclude(group = "androidx.browser", module = "browser")
     }
@@ -83,6 +86,7 @@ dependencies {
         exclude(group = "androidx.browser", module = "browser")
     }
     implementation(libs.ktor.client.android)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
