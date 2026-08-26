@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.repository.MangaRepository
+import com.example.zeromangas.repository.PesquisaRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ private data class Filtros(
     val busca: String,
     val categoria: String?,
     val marca: String?,
+    val autor: String?,
     val ordenacao: TipoOrdenacao,
     val faixaDePreco: Pair<Double?, Double?>
 )
@@ -33,6 +35,7 @@ private data class Filtros(
 class HomeViewModel : ViewModel() {
 
     private val repository = MangaRepository()
+    private val pesquisaRepository = PesquisaRepository()
 
     private val _todosMangas = MutableStateFlow<List<Manga>>(emptyList())
 
@@ -56,6 +59,30 @@ class HomeViewModel : ViewModel() {
 
     private val _marcaSelecionada = MutableStateFlow<String?>(null)
     val marcaSelecionada: StateFlow<String?> = _marcaSelecionada
+
+    private val _autores = MutableStateFlow<List<String>>(emptyList())
+    val autores: StateFlow<List<String>> = _autores.asStateFlow()
+
+    private val _autorSelecionado = MutableStateFlow<String?>(null)
+    val autorSelecionado: StateFlow<String?> = _autorSelecionado
+
+    // ---- Histórico de pesquisas (Etapa 3, Parte 2) ----
+    private val _pesquisasRecentes = MutableStateFlow<List<String>>(emptyList())
+    val pesquisasRecentes: StateFlow<List<String>> = _pesquisasRecentes.asStateFlow()
+
+    /**
+     * Sugestões automáticas: até 5 mangás cujo nome bate com o texto digitado,
+     * pra mostrar num dropdown enquanto o usuário ainda está digitando (antes
+     * de "confirmar" a pesquisa). Não considera os outros filtros (categoria/
+     * marca/preço) de propósito — é só uma prévia rápida por nome.
+     */
+    val sugestoes: StateFlow<List<Manga>> = combine(_todosMangas, _textoBusca) { todos, busca ->
+        if (busca.isBlank()) {
+            emptyList()
+        } else {
+            todos.filter { it.nome.contains(busca, ignoreCase = true) }.take(5)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _precoMinimo = MutableStateFlow<Double?>(null)
     val precoMinimo: StateFlow<Double?> = _precoMinimo
@@ -110,14 +137,22 @@ class HomeViewModel : ViewModel() {
     // Combina min/max em um único fluxo para poder juntar com os demais filtros (combine tem limite de 5 fluxos)
     private val faixaDePreco = combine(_precoMinimo, _precoMaximo) { min, max -> min to max }
 
+    // Agrupa busca/categoria/marca/autor primeiro (4 fluxos) e só depois junta com
+    // ordenação + faixa de preço — combine só aceita até 5 fluxos por chamada.
+    private data class FiltrosBasicos(val busca: String, val categoria: String?, val marca: String?, val autor: String?)
+
+    private val filtrosBasicos = combine(
+        _textoBusca, _categoriaSelecionada, _marcaSelecionada, _autorSelecionado
+    ) { busca, categoria, marca, autor -> FiltrosBasicos(busca, categoria, marca, autor) }
+
     private val filtros: StateFlow<Filtros> = combine(
-        _textoBusca, _categoriaSelecionada, _marcaSelecionada, _ordenacao, faixaDePreco
-    ) { busca, categoria, marca, ordenacao, faixa ->
-        Filtros(busca, categoria, marca, ordenacao, faixa)
+        filtrosBasicos, _ordenacao, faixaDePreco
+    ) { fb, ordenacao, faixa ->
+        Filtros(fb.busca, fb.categoria, fb.marca, fb.autor, ordenacao, faixa)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = Filtros("", null, null, TipoOrdenacao.NENHUMA, null to null)
+        initialValue = Filtros("", null, null, null, TipoOrdenacao.NENHUMA, null to null)
     )
 
     val mangasFiltrados: StateFlow<List<Manga>> = combine(
@@ -140,6 +175,10 @@ class HomeViewModel : ViewModel() {
 
         if (f.marca != null) {
             resultado = resultado.filter { it.marca == f.marca }
+        }
+
+        if (f.autor != null) {
+            resultado = resultado.filter { it.autor == f.autor }
         }
 
         val (precoMin, precoMax) = f.faixaDePreco
@@ -176,11 +215,12 @@ class HomeViewModel : ViewModel() {
     )
 
     val quantidadeFiltrosAtivos: StateFlow<Int> = combine(
-        _categoriaSelecionada, _marcaSelecionada, faixaDePreco
-    ) { categoria, marca, faixa ->
+        _categoriaSelecionada, _marcaSelecionada, _autorSelecionado, faixaDePreco
+    ) { categoria, marca, autor, faixa ->
         var quantidade = 0
         if (categoria != null) quantidade++
         if (marca != null) quantidade++
+        if (autor != null) quantidade++
         if (faixa.first != null || faixa.second != null) quantidade++
         quantidade
     }.stateIn(
@@ -210,6 +250,7 @@ class HomeViewModel : ViewModel() {
 
             repository.listarCategorias().onSuccess { _categorias.value = it }
             repository.listarMarcas().onSuccess { _marcas.value = it }
+            repository.listarAutores().onSuccess { _autores.value = it }
 
             _carregando.value = false
         }
@@ -235,6 +276,40 @@ class HomeViewModel : ViewModel() {
         _marcaSelecionada.value = marca
     }
 
+    fun selecionarAutor(autor: String?) {
+        _autorSelecionado.value = if (_autorSelecionado.value == autor) null else autor
+    }
+
+    fun definirAutor(autor: String?) {
+        _autorSelecionado.value = autor
+    }
+
+    fun carregarPesquisasRecentes(usuarioId: String) {
+        if (usuarioId.isBlank()) return
+        viewModelScope.launch {
+            pesquisaRepository.listarPesquisasRecentes(usuarioId).onSuccess { _pesquisasRecentes.value = it }
+        }
+    }
+
+    /** Registra o termo pesquisado no histórico (chamar quando o usuário "confirma" a busca). */
+    fun registrarPesquisa(usuarioId: String) {
+        val termo = _textoBusca.value.trim()
+        if (usuarioId.isBlank() || termo.isBlank()) return
+
+        viewModelScope.launch {
+            pesquisaRepository.registrarPesquisa(usuarioId, termo).onSuccess {
+                carregarPesquisasRecentes(usuarioId)
+            }
+        }
+    }
+
+    fun limparHistoricoPesquisas(usuarioId: String) {
+        if (usuarioId.isBlank()) return
+        viewModelScope.launch {
+            pesquisaRepository.limparHistorico(usuarioId).onSuccess { _pesquisasRecentes.value = emptyList() }
+        }
+    }
+
     fun definirFaixaDePreco(min: Double?, max: Double?) {
         _precoMinimo.value = min
         _precoMaximo.value = max
@@ -247,6 +322,7 @@ class HomeViewModel : ViewModel() {
     fun limparFiltros() {
         _categoriaSelecionada.value = null
         _marcaSelecionada.value = null
+        _autorSelecionado.value = null
         _precoMinimo.value = null
         _precoMaximo.value = null
     }

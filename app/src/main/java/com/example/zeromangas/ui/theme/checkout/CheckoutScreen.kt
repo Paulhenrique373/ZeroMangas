@@ -5,9 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
@@ -24,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.zeromangas.data.model.Endereco
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.formatarPrecoBr
 import com.example.zeromangas.ui.theme.FundoCard
@@ -73,12 +76,19 @@ fun CheckoutScreen(
     val cupomAplicado by cartViewModel.cupomAplicado.collectAsState()
     val desconto by cartViewModel.desconto.collectAsState()
     val checkoutState by cartViewModel.checkoutState.collectAsState()
+    val enderecosSalvos by cartViewModel.enderecosSalvos.collectAsState()
+    val carregandoEnderecosSalvos by cartViewModel.carregandoEnderecosSalvos.collectAsState()
+    val enderecoSelecionadoId by cartViewModel.enderecoSelecionadoId.collectAsState()
 
     val subtotal = itens.sumOf { it.subtotal }
     val total = subtotal + (frete ?: 0.0) - desconto
 
     var etapa by remember { mutableStateOf(EtapaCheckout.ENDERECO) }
     var metodoSelecionado by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        cartViewModel.carregarEnderecosSalvos(usuarioId)
+    }
 
     LaunchedEffect(checkoutState) {
         val estado = checkoutState
@@ -120,42 +130,70 @@ fun CheckoutScreen(
 
             when (etapa) {
                 EtapaCheckout.ENDERECO -> {
-                    SecaoFrete(
-                        cep = cep,
-                        cepErro = cepErro,
-                        frete = frete,
-                        calculando = calculandoFrete,
-                        cidadeUf = cidadeUf,
-                        onCepChange = { cartViewModel.atualizarCep(it) },
-                        onCalcularFrete = { cartViewModel.calcularFrete() }
-                    )
+                    if (carregandoEnderecosSalvos && enderecosSalvos.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = RoxoNeon, modifier = Modifier.size(28.dp))
+                        }
+                    }
 
-                    if (frete != null) {
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        OutlinedTextField(
-                            value = numero,
-                            onValueChange = { cartViewModel.atualizarNumero(it) },
-                            label = { Text("Número") },
-                            singleLine = true,
-                            isError = numero.isBlank(),
-                            modifier = Modifier.fillMaxWidth()
+                    if (enderecosSalvos.isNotEmpty()) {
+                        Text("Escolha um endereço", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+
+                        enderecosSalvos.forEach { endereco ->
+                            CartaoEnderecoSalvo(
+                                endereco = endereco,
+                                selecionado = enderecoSelecionadoId == endereco.id,
+                                onClick = { cartViewModel.selecionarEnderecoSalvo(endereco) }
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                        }
+
+                        CartaoNovoEndereco(
+                            selecionado = enderecoSelecionadoId == null,
+                            onClick = { cartViewModel.selecionarNovoEndereco() }
                         )
-                        if (numero.isBlank()) {
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                text = "Informe o número para continuar.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                    }
+
+                    if (enderecoSelecionadoId == null) {
+                        SecaoFrete(
+                            cep = cep,
+                            cepErro = cepErro,
+                            frete = frete,
+                            calculando = calculandoFrete,
+                            cidadeUf = cidadeUf,
+                            onCepChange = { cartViewModel.atualizarCep(it) },
+                            onCalcularFrete = { cartViewModel.calcularFrete() }
+                        )
+
+                        if (frete != null) {
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            OutlinedTextField(
+                                value = numero,
+                                onValueChange = { cartViewModel.atualizarNumero(it) },
+                                label = { Text("Número") },
+                                singleLine = true,
+                                isError = numero.isBlank(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (numero.isBlank()) {
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                Text(
+                                    text = "Informe o número para continuar.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            OutlinedTextField(
+                                value = complemento,
+                                onValueChange = { cartViewModel.atualizarComplemento(it) },
+                                label = { Text("Complemento (opcional)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        OutlinedTextField(
-                            value = complemento,
-                            onValueChange = { cartViewModel.atualizarComplemento(it) },
-                            label = { Text("Complemento (opcional)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
                 }
 
@@ -244,6 +282,87 @@ fun CheckoutScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Card selecionável de um endereço já salvo, na etapa de Endereço do checkout. */
+@Composable
+private fun CartaoEnderecoSalvo(
+    endereco: Endereco,
+    selecionado: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Spacing.radiusMedium))
+            .background(if (selecionado) RoxoNeon.copy(alpha = 0.12f) else FundoCard)
+            .clickable { onClick() }
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = if (selecionado) RoxoNeonClaro else TextoSecundario
+        )
+        Spacer(modifier = Modifier.width(Spacing.md))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = endereco.nomeDestinatario.ifBlank { "Endereço" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (selecionado) FontWeight.Medium else FontWeight.Normal,
+                    color = if (selecionado) TextoPrincipal else TextoSecundario
+                )
+                if (endereco.padrao) {
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("· Padrão", style = MaterialTheme.typography.labelSmall, color = RoxoNeonClaro)
+                }
+            }
+            Text(
+                text = "${endereco.logradouro}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade}/${endereco.uf}",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextoSecundario
+            )
+        }
+        if (selecionado) {
+            Icon(Icons.Default.Check, contentDescription = "Selecionado", tint = RoxoNeonClaro)
+        }
+    }
+}
+
+/** Card que troca pro formulário de CEP manual, pra digitar um endereço novo na hora. */
+@Composable
+private fun CartaoNovoEndereco(
+    selecionado: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Spacing.radiusMedium))
+            .background(if (selecionado) RoxoNeon.copy(alpha = 0.12f) else FundoCard)
+            .clickable { onClick() }
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null,
+            tint = if (selecionado) RoxoNeonClaro else TextoSecundario
+        )
+        Spacer(modifier = Modifier.width(Spacing.md))
+        Text(
+            text = "Usar um novo endereço",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (selecionado) FontWeight.Medium else FontWeight.Normal,
+            color = if (selecionado) TextoPrincipal else TextoSecundario,
+            modifier = Modifier.weight(1f)
+        )
+        if (selecionado) {
+            Icon(Icons.Default.Check, contentDescription = "Selecionado", tint = RoxoNeonClaro)
         }
     }
 }

@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.data.model.Cupom
+import com.example.zeromangas.data.model.Endereco
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.data.model.Order
+import com.example.zeromangas.repository.CarrinhoRepository
 import com.example.zeromangas.repository.EnderecoCep
 import com.example.zeromangas.repository.ViaCepRepository
 import com.example.zeromangas.repository.CupomRepository
@@ -38,6 +40,12 @@ class CartViewModel : ViewModel() {
     private val mangaRepository = MangaRepository()
     private val usuarioRepository = UsuarioRepository()
     private val enderecoRepository = EnderecoRepository()
+    private val carrinhoRepository = CarrinhoRepository()
+
+    // Usuário logado, guardado aqui pra poder persistir o carrinho no Supabase
+    // (tabela "carrinho_itens") sempre que ele mudar, sem precisar que toda tela
+    // que mexe no carrinho fique passando o userId pra cada função.
+    private var usuarioIdAtual: String? = null
 
     private val _itens = MutableStateFlow<List<CartItem>>(emptyList())
     val itens: StateFlow<List<CartItem>> = _itens.asStateFlow()
@@ -64,6 +72,23 @@ class CartViewModel : ViewModel() {
     // Endereço completo encontrado no ViaCEP (logradouro/bairro/cidade/uf), usado
     // pra gravar a linha em "enderecos" no momento da compra.
     private val _enderecoEncontrado = MutableStateFlow<EnderecoCep?>(null)
+
+    // ---- Endereços salvos (checkout) ----
+    // Reaproveita a lista de "Meus Endereços" pra deixar escolher um salvo em vez de
+    // digitar tudo de novo. Cache do cliente_id evita resolver de novo a cada chamada.
+    private var clienteIdCache: String? = null
+
+    private val _enderecosSalvos = MutableStateFlow<List<Endereco>>(emptyList())
+    val enderecosSalvos: StateFlow<List<Endereco>> = _enderecosSalvos.asStateFlow()
+
+    private val _carregandoEnderecosSalvos = MutableStateFlow(false)
+    val carregandoEnderecosSalvos: StateFlow<Boolean> = _carregandoEnderecosSalvos.asStateFlow()
+
+    // Id do endereço salvo escolhido no checkout. Null = "endereço novo" (usa o
+    // fluxo de CEP manual que já existia). Não-null = reaproveita esse endereço,
+    // sem criar uma linha nova em "enderecos" ao finalizar a compra.
+    private val _enderecoSelecionadoId = MutableStateFlow<String?>(null)
+    val enderecoSelecionadoId: StateFlow<String?> = _enderecoSelecionadoId.asStateFlow()
 
     private val _numero = MutableStateFlow("")
     val numero: StateFlow<String> = _numero.asStateFlow()
@@ -111,6 +136,15 @@ class CartViewModel : ViewModel() {
         _avisoEstoque.value = null
     }
 
+    /**
+     * Adiciona vários mangás de uma vez (botão "Adicionar todos ao carrinho" dos
+     * Favoritos). Reaproveita [adicionarItem] pra cada um, então os avisos de
+     * estoque esgotado/insuficiente continuam valendo por item.
+     */
+    fun adicionarVarios(mangas: List<Manga>) {
+        mangas.forEach { adicionarItem(it) }
+    }
+
     fun adicionarItem(manga: Manga) {
         if (manga.estoque <= 0) {
             _avisoEstoque.value = "${manga.nome} está esgotado."
@@ -134,6 +168,7 @@ class CartViewModel : ViewModel() {
             listaAtual + CartItem(manga = manga, quantidade = 1)
         }
 
+        persistirItem(manga.id, quantidadeAtualNoCarrinho + 1)
         _mensagemSucesso.value = "${manga.nome} adicionado ao carrinho!"
     }
 
@@ -148,25 +183,97 @@ class CartViewModel : ViewModel() {
         _itens.value = _itens.value.map {
             if (it.manga.id == manga.id) it.copy(quantidade = it.quantidade + 1) else it
         }
+        persistirItem(manga.id, itemAtual.quantidade + 1)
     }
 
     fun diminuirQuantidade(manga: Manga) {
+        val itemAtual = _itens.value.find { it.manga.id == manga.id } ?: return
         _itens.value = _itens.value.mapNotNull {
             if (it.manga.id == manga.id) {
                 if (it.quantidade > 1) it.copy(quantidade = it.quantidade - 1) else null
             } else it
         }
+        if (itemAtual.quantidade > 1) {
+            persistirItem(manga.id, itemAtual.quantidade - 1)
+        } else {
+            persistirRemocaoItem(manga.id)
+        }
     }
 
     fun removerItem(manga: Manga) {
         _itens.value = _itens.value.filterNot { it.manga.id == manga.id }
+        persistirRemocaoItem(manga.id)
     }
 
     fun limparCarrinho() {
         _itens.value = emptyList()
+        persistirLimpezaCarrinho()
+    }
+
+    /**
+     * Chamado uma vez ao logar (ex: no NavGraph, quando o usuário é conhecido).
+     * Carrega o carrinho salvo no Supabase pra esse cliente — só recarrega de
+     * novo se for um usuário diferente do já carregado, pra não sobrescrever
+     * o carrinho em memória toda vez que a tela recompuser.
+     */
+    fun definirUsuarioLogado(usuarioId: String) {
+        if (usuarioId.isBlank() || usuarioId == usuarioIdAtual) return
+        usuarioIdAtual = usuarioId
+
+        viewModelScope.launch {
+            val idCliente = clienteIdCache ?: usuarioRepository.buscarClienteId(usuarioId).getOrNull()
+            clienteIdCache = idCliente
+            if (idCliente == null) return@launch
+
+            val itensDto = carrinhoRepository.listarItens(idCliente).getOrNull() ?: return@launch
+            if (itensDto.isEmpty()) return@launch
+
+            val todosMangas = mangaRepository.listarMangas().getOrNull() ?: return@launch
+            val mangasPorId = todosMangas.associateBy { it.id }
+
+            val itensRestaurados = itensDto.mapNotNull { itemDto ->
+                val manga = mangasPorId[itemDto.produtoId] ?: return@mapNotNull null
+                CartItem(manga = manga, quantidade = itemDto.quantidade.coerceAtMost(manga.estoque.coerceAtLeast(1)))
+            }
+
+            // Só restaura se o carrinho em memória ainda estiver vazio (evita sobrescrever
+            // itens que o usuário já tenha adicionado nesta mesma sessão antes disso terminar).
+            if (_itens.value.isEmpty() && itensRestaurados.isNotEmpty()) {
+                _itens.value = itensRestaurados
+            }
+        }
+    }
+
+    /** Sobe pro Supabase a quantidade atual de um produto no carrinho (upsert). */
+    private fun persistirItem(produtoId: String, quantidade: Int) {
+        val uid = usuarioIdAtual ?: return
+        viewModelScope.launch {
+            val idCliente = clienteIdCache ?: usuarioRepository.buscarClienteId(uid).getOrNull() ?: return@launch
+            clienteIdCache = idCliente
+            carrinhoRepository.salvarItem(idCliente, produtoId, quantidade)
+        }
+    }
+
+    private fun persistirRemocaoItem(produtoId: String) {
+        val uid = usuarioIdAtual ?: return
+        viewModelScope.launch {
+            val idCliente = clienteIdCache ?: usuarioRepository.buscarClienteId(uid).getOrNull() ?: return@launch
+            clienteIdCache = idCliente
+            carrinhoRepository.removerItem(idCliente, produtoId)
+        }
+    }
+
+    private fun persistirLimpezaCarrinho() {
+        val uid = usuarioIdAtual ?: return
+        viewModelScope.launch {
+            val idCliente = clienteIdCache ?: usuarioRepository.buscarClienteId(uid).getOrNull() ?: return@launch
+            clienteIdCache = idCliente
+            carrinhoRepository.limparCarrinho(idCliente)
+        }
     }
 
     fun atualizarCep(valor: String) {
+        _enderecoSelecionadoId.value = null
         _cep.value = valor
         _frete.value = null
         _cepErro.value = null
@@ -234,6 +341,66 @@ class CartViewModel : ViewModel() {
             in sulECentroOeste -> 18.0
             else -> 25.0 // Norte e Nordeste
         }
+    }
+
+    /**
+     * Carrega os endereços salvos do usuário (tabela "enderecos") pra tela de
+     * checkout poder oferecer "escolher um salvo" em vez de digitar tudo de novo.
+     * Se ainda não houver nenhum endereço escolhido nesta sessão de checkout,
+     * pré-seleciona o padrão automaticamente (ou o único, se só houver um).
+     */
+    fun carregarEnderecosSalvos(userId: String) {
+        if (userId.isBlank()) return
+
+        _carregandoEnderecosSalvos.value = true
+        viewModelScope.launch {
+            val idCliente = clienteIdCache ?: usuarioRepository.buscarClienteId(userId).getOrNull()
+            clienteIdCache = idCliente
+
+            if (idCliente == null) {
+                _carregandoEnderecosSalvos.value = false
+                return@launch
+            }
+
+            val resultado = enderecoRepository.listarEnderecos(idCliente)
+            resultado.onSuccess { lista ->
+                _enderecosSalvos.value = lista
+                if (_enderecoSelecionadoId.value == null && _cep.value.isBlank()) {
+                    val sugestao = lista.firstOrNull { it.padrao } ?: lista.firstOrNull()
+                    sugestao?.let { selecionarEnderecoSalvo(it) }
+                }
+            }
+            _carregandoEnderecosSalvos.value = false
+        }
+    }
+
+    /**
+     * Usa um endereço já salvo: preenche CEP/número/complemento/cidade-UF e calcula
+     * o frete na hora (sem precisar chamar o ViaCEP de novo, já que os dados já
+     * estão completos). Como o endereço já existe no banco, [_enderecoEncontrado]
+     * fica null — isso sinaliza pro [finalizarCompra] não criar uma linha nova.
+     */
+    fun selecionarEnderecoSalvo(endereco: Endereco) {
+        _enderecoSelecionadoId.value = endereco.id
+        _cep.value = endereco.cep
+        _numero.value = endereco.numero
+        _complemento.value = endereco.complemento
+        _cidadeUf.value = "${endereco.cidade} - ${endereco.uf}"
+        _frete.value = valorFretePorUf(endereco.uf)
+        _cepErro.value = null
+        _enderecoEncontrado.value = null
+    }
+
+    /** Sai do modo "endereço salvo" e volta pro formulário de CEP manual, em branco. */
+    fun selecionarNovoEndereco() {
+        _enderecoSelecionadoId.value = null
+        _cep.value = ""
+        _numero.value = ""
+        _complemento.value = ""
+        _cidadeUf.value = null
+        _frete.value = null
+        _cepErro.value = null
+        _enderecoEncontrado.value = null
     }
 
     fun atualizarCupomInput(valor: String) {
@@ -399,15 +566,17 @@ class CartViewModel : ViewModel() {
                 }
             }
 
-            // Resolve o cliente_id do usuário logado. Se falhar, o pedido ainda é criado
-            // (cliente_id fica nulo) — não travamos a compra por causa disso.
-            val clienteId = usuarioRepository.buscarClienteId(userId).getOrNull()
+            // Resolve o cliente_id do usuário logado (reaproveita o cache, se a tela de
+            // checkout já tiver carregado os endereços salvos). Se falhar, o pedido ainda
+            // é criado (cliente_id fica nulo) — não travamos a compra por causa disso.
+            val clienteId = clienteIdCache ?: usuarioRepository.buscarClienteId(userId).getOrNull()
+            clienteIdCache = clienteId
 
-            // Grava o endereço usado nesta compra (histórico), ligado ao cliente, e guarda
-            // o id retornado pra linkar no pedido. Também não bloqueia a compra se falhar.
-            var enderecoId: String? = null
+            // Se o usuário escolheu um endereço já salvo, reaproveita o id dele direto —
+            // só grava uma linha nova em "enderecos" quando for endereço digitado na hora.
+            var enderecoId: String? = _enderecoSelecionadoId.value
             val enderecoEncontrado = _enderecoEncontrado.value
-            if (enderecoEncontrado != null && clienteId != null) {
+            if (enderecoId == null && enderecoEncontrado != null && clienteId != null) {
                 enderecoId = enderecoRepository.salvarEndereco(
                     clienteId = clienteId,
                     cep = enderecoEncontrado.cep,
@@ -455,6 +624,7 @@ class CartViewModel : ViewModel() {
                     _numero.value = ""
                     _complemento.value = ""
                     _enderecoEncontrado.value = null
+                    _enderecoSelecionadoId.value = null
                     removerCupom()
                 },
                 onFailure = { erro ->

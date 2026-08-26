@@ -2,11 +2,13 @@ package com.example.zeromangas.data.remote
 
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
 
 /**
- * Cliente único do Supabase, usado para Storage (upload de fotos de perfil)
- * e Postgrest (banco de dados relacional: produtos, pedidos, favoritos, cupons).
+ * Cliente único do Supabase, usado para Storage (upload de fotos de perfil),
+ * Postgrest (banco de dados relacional: produtos, pedidos, favoritos, cupons)
+ * e Realtime (notificações ao vivo: promoção/estoque de favoritos).
  * A autenticação continua no Firebase Auth.
  *
  * A URL e a chave abaixo ficam hardcoded de propósito: é a chave "publishable"
@@ -24,5 +26,6 @@ object SupabaseClient {
     ) {
         install(Storage)
         install(Postgrest)
+        install(Realtime)
     }
 }

@@ -17,6 +17,11 @@ private data class EstoqueDto(
     val estoque: Int
 )
 
+@Serializable
+private data class AutorDto(
+    val autor: String? = null
+)
+
 /** Converte o DTO vindo do Supabase (com os joins de marca/categoria) para o model de UI. */
 private fun ProdutoDto.paraManga(): Manga = Manga(
     id = id,
@@ -28,7 +33,12 @@ private fun ProdutoDto.paraManga(): Manga = Manga(
     imagemUrl = imagemUrl,
     descricao = descricao,
     emDestaque = emDestaque,
-    estoque = estoque
+    estoque = estoque,
+    autor = autor ?: "",
+    notaMedia = notaMedia,
+    totalAvaliacoes = totalAvaliacoes,
+    precoPromocional = precoPromocional,
+    emPromocao = emPromocao
 )
 
 class MangaRepository {
@@ -66,6 +76,28 @@ class MangaRepository {
         return try {
             val lista = marcasTable.select().decodeList<MarcaDto>()
             Result.success(lista.map { it.nome }.sorted())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Lista os autores distintos cadastrados nos produtos, pro filtro de "autor"
+     * da Busca. Não existe uma tabela "autores" separada — é só uma coluna de
+     * texto em "produtos" — então a deduplicação é feita aqui mesmo.
+     */
+    suspend fun listarAutores(): Result<List<String>> {
+        return try {
+            val dtos = produtosTable
+                .select(columns = Columns.list("autor"))
+                .decodeList<AutorDto>()
+
+            val autores = dtos.mapNotNull { it.autor?.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .sorted()
+
+            Result.success(autores)
         } catch (e: Exception) {
             Result.failure(e)
         }

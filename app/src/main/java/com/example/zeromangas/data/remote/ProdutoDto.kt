@@ -20,6 +20,11 @@ data class ProdutoDto(
     val descricao: String = "",
     @SerialName("em_destaque") val emDestaque: Boolean = false,
     val estoque: Int = 0,
+    val autor: String? = null,
+    @SerialName("nota_media") val notaMedia: Double = 0.0,
+    @SerialName("total_avaliacoes") val totalAvaliacoes: Int = 0,
+    @SerialName("preco_promocional") val precoPromocional: Double? = null,
+    @SerialName("em_promocao") val emPromocao: Boolean = false,
     val marcas: NomeDto? = null,
     val categorias: NomeDto? = null
 )
