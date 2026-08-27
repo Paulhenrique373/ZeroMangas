@@ -115,7 +115,7 @@ class NotificacaoRepository {
      */
     fun escutarNovasNotificacoes(usuarioId: String): Flow<Notificacao> {
         return realtimeChannel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
-            table = "notificacoes"
+            table = "com/example/zeromangas/ui/theme/notificacoes"
         }
             .map { it.decodeRecord<NotificacaoDto>() }
             .filter { it.usuarioId == usuarioId || it.usuarioId == null }

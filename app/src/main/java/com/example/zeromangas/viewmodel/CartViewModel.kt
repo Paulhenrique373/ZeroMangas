@@ -504,6 +504,12 @@ class CartViewModel : ViewModel() {
      * usado nesta compra em "enderecos", pra poder linkar pedidos.cliente_id e
      * pedidos.endereco_id na RPC "criar_pedido".
      *
+     * IMPORTANTE (pós-migração do banco): "pedidos.cliente_id" e "pedidos.endereco_id"
+     * agora são NOT NULL no Supabase. Por isso, diferente da versão anterior, aqui
+     * bloqueamos o checkout com uma mensagem clara se qualquer um dos dois não puder
+     * ser resolvido — antes, o pedido era criado mesmo assim com esses campos nulos,
+     * o que agora causaria erro de constraint na RPC "criar_pedido".
+     *
      * O desconto de estoque acontece DENTRO da RPC "criar_pedido" (transação atômica no
      * banco), então não fazemos mais nenhum ajuste manual de estoque aqui depois de salvar
      * o pedido — isso evitaria contar o mesmo desconto duas vezes.
@@ -567,16 +573,24 @@ class CartViewModel : ViewModel() {
             }
 
             // Resolve o cliente_id do usuário logado (reaproveita o cache, se a tela de
-            // checkout já tiver carregado os endereços salvos). Se falhar, o pedido ainda
-            // é criado (cliente_id fica nulo) — não travamos a compra por causa disso.
+            // checkout já tiver carregado os endereços salvos).
+            // ALTERADO: "clientes.id" agora é obrigatório em "pedidos" (NOT NULL). Se não
+            // resolver, bloqueia a compra em vez de criar o pedido com cliente_id nulo.
             val clienteId = clienteIdCache ?: usuarioRepository.buscarClienteId(userId).getOrNull()
             clienteIdCache = clienteId
+
+            if (clienteId == null) {
+                _checkoutState.value = CheckoutState.Erro(
+                    "Não foi possível identificar seu cadastro de cliente. Tente sair e entrar novamente antes de finalizar a compra."
+                )
+                return@launch
+            }
 
             // Se o usuário escolheu um endereço já salvo, reaproveita o id dele direto —
             // só grava uma linha nova em "enderecos" quando for endereço digitado na hora.
             var enderecoId: String? = _enderecoSelecionadoId.value
             val enderecoEncontrado = _enderecoEncontrado.value
-            if (enderecoId == null && enderecoEncontrado != null && clienteId != null) {
+            if (enderecoId == null && enderecoEncontrado != null) {
                 enderecoId = enderecoRepository.salvarEndereco(
                     clienteId = clienteId,
                     cep = enderecoEncontrado.cep,
@@ -587,6 +601,17 @@ class CartViewModel : ViewModel() {
                     cidade = enderecoEncontrado.cidade,
                     uf = enderecoEncontrado.uf
                 ).getOrNull()
+            }
+
+            // ALTERADO: "enderecos.id" agora é obrigatório em "pedidos" (NOT NULL). Antes,
+            // o pedido seguia com endereco_id nulo se a gravação falhasse ou se nenhum
+            // endereço (salvo ou novo) tivesse sido resolvido; agora isso bloqueia a compra
+            // com uma mensagem clara, em vez de deixar a RPC "criar_pedido" estourar erro.
+            if (enderecoId == null) {
+                _checkoutState.value = CheckoutState.Erro(
+                    "Selecione um endereço salvo ou informe um CEP válido antes de finalizar a compra."
+                )
+                return@launch
             }
 
             val subtotalAtual = itensAtuais.sumOf { it.subtotal }

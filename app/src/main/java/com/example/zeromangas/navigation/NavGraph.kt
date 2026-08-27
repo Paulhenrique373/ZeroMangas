@@ -48,11 +48,13 @@ import com.example.zeromangas.ui.theme.pedidos.PedidosScreen
 import com.example.zeromangas.ui.theme.perfil.ProfileScreen
 import com.example.zeromangas.ui.theme.editarperfil.EditarPerfilScreen
 import com.example.zeromangas.ui.theme.enderecos.EnderecosScreen
+import com.example.zeromangas.ui.theme.notificacoes.NotificacoesScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.EnderecoViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
+import com.example.zeromangas.viewmodel.NotificacaoViewModel
 
 sealed class Tela(val rota: String) {
     object Login : Tela("login")
@@ -66,6 +68,7 @@ sealed class Tela(val rota: String) {
     object Enderecos : Tela("enderecos")
     object Favoritos : Tela("favoritos")
     object Busca : Tela("busca")
+    object Notificacoes : Tela("notificacoes")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -83,6 +86,7 @@ fun NavGraph() {
     val authViewModel: AuthViewModel = viewModel()
     val favoritoViewModel: FavoritoViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
+    val notificacaoViewModel: NotificacaoViewModel = viewModel()
 
     // Rotas em que a navegação inferior deve aparecer.
     val rotasComBottomBar = setOf(
@@ -188,9 +192,13 @@ fun NavGraph() {
                     homeViewModel = homeViewModel,
                     cartViewModel = cartViewModel,
                     favoritoViewModel = favoritoViewModel,
+                    notificacaoViewModel = notificacaoViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
                     onMangaClick = { manga ->
                         navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                    },
+                    onNotificacoesClick = {
+                        navController.navigate(Tela.Notificacoes.rota)
                     },
                     onCarrinhoClick = {
                         // ETAPA 3 (navegação): mesmo padrão de troca de aba usado pelo
@@ -229,6 +237,7 @@ fun NavGraph() {
                         authViewModel.logout()
                         cartViewModel.limparCarrinho()
                         favoritoViewModel.limparFavoritos()
+                        notificacaoViewModel.limpar()
                         navController.navigate(Tela.Login.rota) {
                             popUpTo(Tela.Home.rota) { inclusive = true }
                         }
@@ -374,6 +383,7 @@ fun NavGraph() {
                         authViewModel.logout()
                         cartViewModel.limparCarrinho()
                         favoritoViewModel.limparFavoritos()
+                        notificacaoViewModel.limpar()
                         navController.navigate(Tela.Login.rota) {
                             popUpTo(Tela.Home.rota) { inclusive = true }
                         }
@@ -409,6 +419,26 @@ fun NavGraph() {
                         navController.navigate(Tela.Home.rota) {
                             popUpTo(Tela.Home.rota)
                             launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            composable(Tela.Notificacoes.rota) {
+                NotificacoesScreen(
+                    notificacaoViewModel = notificacaoViewModel,
+                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                    onVoltar = { navController.popBackStack() },
+                    onNotificacaoClick = { notificacao ->
+                        // Leva pra origem da notificação quando existir: produto (promoção,
+                        // lançamento, favorito voltou ao estoque/entrou em promoção) ou
+                        // pedido (atualização de status). Notificação sem nenhum dos dois
+                        // (ex: aviso genérico) só marca como lida e fica na própria tela.
+                        val produtoId = notificacao.produtoId
+                        val pedidoId = notificacao.pedidoId
+                        when {
+                            produtoId != null -> navController.navigate(Tela.Detalhes.criarRota(produtoId))
+                            pedidoId != null -> navController.navigate(Tela.Pedidos.rota)
                         }
                     }
                 )

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -42,6 +43,7 @@ import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
+import com.example.zeromangas.viewmodel.NotificacaoViewModel
 import com.example.zeromangas.viewmodel.TipoOrdenacao
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +52,7 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
     cartViewModel: CartViewModel,
     favoritoViewModel: FavoritoViewModel,
+    notificacaoViewModel: NotificacaoViewModel,
     usuarioId: String,
     onMangaClick: (Manga) -> Unit = {},
     onCarrinhoClick: () -> Unit = {},
@@ -57,6 +60,7 @@ fun HomeScreen(
     onPerfilClick: () -> Unit = {},
     onFavoritosClick: () -> Unit = {},
     onBuscaClick: () -> Unit = {},
+    onNotificacoesClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val mangasEmDestaque by homeViewModel.mangasEmDestaque.collectAsState()
@@ -69,11 +73,13 @@ fun HomeScreen(
     val itensCarrinho by cartViewModel.itens.collectAsState()
     val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
+    val quantidadeNotificacoesNaoLidas by notificacaoViewModel.quantidadeNaoLidas.collectAsState()
 
     var mostrarConfirmacaoLogout by remember { mutableStateOf(false) }
 
     LaunchedEffect(usuarioId) {
         favoritoViewModel.carregarFavoritos(usuarioId)
+        notificacaoViewModel.iniciar(usuarioId)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -100,6 +106,22 @@ fun HomeScreen(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                BadgedBox(
+                    badge = {
+                        if (quantidadeNotificacoesNaoLidas > 0) {
+                            Badge { Text("$quantidadeNotificacoesNaoLidas") }
+                        }
+                    }
+                ) {
+                    IconButton(onClick = onNotificacoesClick) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notificações",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
                 IconButton(onClick = onFavoritosClick) {
                     Icon(
                         imageVector = Icons.Default.Favorite,
