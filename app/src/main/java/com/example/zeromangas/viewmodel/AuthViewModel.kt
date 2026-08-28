@@ -93,9 +93,22 @@ class AuthViewModel : ViewModel() {
             val resultado = repository.cadastrar(nome, email, senha)
             resultado.fold(
                 onSuccess = { usuarioFirebase ->
-                    usuarioRepository.sincronizarUsuario(usuarioFirebase.uid, nome, email)
-                    _authState.value = AuthState.Sucesso
-                    carregarUsuario()
+                    // ALTERADO: antes o resultado de sincronizarUsuario era descartado — se a
+                    // sincronização com a tabela "usuarios" falhasse (ex: erro de SQL na RPC),
+                    // o app mostrava "cadastro concluído" mesmo assim, escondendo o problema.
+                    // Agora, se falhar, avisamos e não seguimos como se tivesse dado certo.
+                    val sincronizacao = usuarioRepository.sincronizarUsuario(usuarioFirebase.uid, nome, email)
+                    sincronizacao.fold(
+                        onSuccess = {
+                            _authState.value = AuthState.Sucesso
+                            carregarUsuario()
+                        },
+                        onFailure = { erro ->
+                            _authState.value = AuthState.Erro(
+                                "Sua conta foi criada, mas não foi possível concluir o cadastro (${erro.message ?: "erro desconhecido"}). Tente fazer login novamente."
+                            )
+                        }
+                    )
                 },
                 onFailure = { erro -> _authState.value = AuthState.Erro(erro.message ?: "Erro ao cadastrar") }
             )
@@ -114,9 +127,22 @@ class AuthViewModel : ViewModel() {
             resultado.fold(
                 onSuccess = { usuarioFirebase ->
                     val nome = usuarioFirebase.displayName ?: ""
-                    usuarioRepository.sincronizarUsuario(usuarioFirebase.uid, nome, email)
-                    _authState.value = AuthState.Sucesso
-                    carregarUsuario()
+                    // ALTERADO: mesmo motivo do cadastro — se sincronizarUsuario falhar aqui,
+                    // o app seguia como se o login tivesse dado certo, mas o usuário nunca
+                    // chegava a existir em "usuarios" (foi a causa do bug de "Usuário não
+                    // encontrado" ao editar o perfil). Agora tratamos o erro explicitamente.
+                    val sincronizacao = usuarioRepository.sincronizarUsuario(usuarioFirebase.uid, nome, email)
+                    sincronizacao.fold(
+                        onSuccess = {
+                            _authState.value = AuthState.Sucesso
+                            carregarUsuario()
+                        },
+                        onFailure = { erro ->
+                            _authState.value = AuthState.Erro(
+                                "Login feito, mas não foi possível carregar seus dados (${erro.message ?: "erro desconhecido"}). Tente novamente."
+                            )
+                        }
+                    )
                 },
                 onFailure = { erro -> _authState.value = AuthState.Erro(erro.message ?: "Erro ao fazer login") }
             )

@@ -42,9 +42,6 @@ class CartViewModel : ViewModel() {
     private val enderecoRepository = EnderecoRepository()
     private val carrinhoRepository = CarrinhoRepository()
 
-    // Usuário logado, guardado aqui pra poder persistir o carrinho no Supabase
-    // (tabela "carrinho_itens") sempre que ele mudar, sem precisar que toda tela
-    // que mexe no carrinho fique passando o userId pra cada função.
     private var usuarioIdAtual: String? = null
 
     private val _itens = MutableStateFlow<List<CartItem>>(emptyList())
@@ -69,13 +66,8 @@ class CartViewModel : ViewModel() {
     private val _cidadeUf = MutableStateFlow<String?>(null)
     val cidadeUf: StateFlow<String?> = _cidadeUf.asStateFlow()
 
-    // Endereço completo encontrado no ViaCEP (logradouro/bairro/cidade/uf), usado
-    // pra gravar a linha em "enderecos" no momento da compra.
     private val _enderecoEncontrado = MutableStateFlow<EnderecoCep?>(null)
 
-    // ---- Endereços salvos (checkout) ----
-    // Reaproveita a lista de "Meus Endereços" pra deixar escolher um salvo em vez de
-    // digitar tudo de novo. Cache do cliente_id evita resolver de novo a cada chamada.
     private var clienteIdCache: String? = null
 
     private val _enderecosSalvos = MutableStateFlow<List<Endereco>>(emptyList())
@@ -84,9 +76,6 @@ class CartViewModel : ViewModel() {
     private val _carregandoEnderecosSalvos = MutableStateFlow(false)
     val carregandoEnderecosSalvos: StateFlow<Boolean> = _carregandoEnderecosSalvos.asStateFlow()
 
-    // Id do endereço salvo escolhido no checkout. Null = "endereço novo" (usa o
-    // fluxo de CEP manual que já existia). Não-null = reaproveita esse endereço,
-    // sem criar uma linha nova em "enderecos" ao finalizar a compra.
     private val _enderecoSelecionadoId = MutableStateFlow<String?>(null)
     val enderecoSelecionadoId: StateFlow<String?> = _enderecoSelecionadoId.asStateFlow()
 
@@ -102,17 +91,12 @@ class CartViewModel : ViewModel() {
     private val _avisoEstoque = MutableStateFlow<String?>(null)
     val avisoEstoque: StateFlow<String?> = _avisoEstoque.asStateFlow()
 
-    // ETAPA 11 (polimento, parte 3): mensagem de sucesso ao adicionar item ao carrinho,
-    // consumida por um Snackbar global no NavGraph (funciona em qualquer tela — Home,
-    // Detalhes, Favoritos — sem precisar duplicar UI de feedback em cada uma).
     private val _mensagemSucesso = MutableStateFlow<String?>(null)
     val mensagemSucesso: StateFlow<String?> = _mensagemSucesso.asStateFlow()
 
     fun limparMensagemSucesso() {
         _mensagemSucesso.value = null
     }
-
-    // ---- Cupom de desconto ----
 
     private val _cupomInput = MutableStateFlow("")
     val cupomInput: StateFlow<String> = _cupomInput.asStateFlow()
@@ -136,11 +120,6 @@ class CartViewModel : ViewModel() {
         _avisoEstoque.value = null
     }
 
-    /**
-     * Adiciona vários mangás de uma vez (botão "Adicionar todos ao carrinho" dos
-     * Favoritos). Reaproveita [adicionarItem] pra cada um, então os avisos de
-     * estoque esgotado/insuficiente continuam valendo por item.
-     */
     fun adicionarVarios(mangas: List<Manga>) {
         mangas.forEach { adicionarItem(it) }
     }
@@ -210,12 +189,6 @@ class CartViewModel : ViewModel() {
         persistirLimpezaCarrinho()
     }
 
-    /**
-     * Chamado uma vez ao logar (ex: no NavGraph, quando o usuário é conhecido).
-     * Carrega o carrinho salvo no Supabase pra esse cliente — só recarrega de
-     * novo se for um usuário diferente do já carregado, pra não sobrescrever
-     * o carrinho em memória toda vez que a tela recompuser.
-     */
     fun definirUsuarioLogado(usuarioId: String) {
         if (usuarioId.isBlank() || usuarioId == usuarioIdAtual) return
         usuarioIdAtual = usuarioId
@@ -236,15 +209,12 @@ class CartViewModel : ViewModel() {
                 CartItem(manga = manga, quantidade = itemDto.quantidade.coerceAtMost(manga.estoque.coerceAtLeast(1)))
             }
 
-            // Só restaura se o carrinho em memória ainda estiver vazio (evita sobrescrever
-            // itens que o usuário já tenha adicionado nesta mesma sessão antes disso terminar).
             if (_itens.value.isEmpty() && itensRestaurados.isNotEmpty()) {
                 _itens.value = itensRestaurados
             }
         }
     }
 
-    /** Sobe pro Supabase a quantidade atual de um produto no carrinho (upsert). */
     private fun persistirItem(produtoId: String, quantidade: Int) {
         val uid = usuarioIdAtual ?: return
         viewModelScope.launch {
@@ -289,11 +259,6 @@ class CartViewModel : ViewModel() {
         _complemento.value = valor
     }
 
-    /**
-     * Calcula o frete consultando o CEP real na API do ViaCEP.
-     * O valor do frete é definido pela região (UF) do endereço encontrado,
-     * simulando a variação de preço por distância que uma transportadora real cobraria.
-     */
     fun calcularFrete() {
         val digitos = _cep.value.filter { it.isDigit() }
 
@@ -329,9 +294,6 @@ class CartViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Valor de frete por região, simulando a distância real a partir do centro de distribuição (São Paulo).
-     */
     private fun valorFretePorUf(uf: String): Double {
         val sudeste = setOf("SP", "RJ", "MG", "ES")
         val sulECentroOeste = setOf("PR", "SC", "RS", "MT", "MS", "GO", "DF")
@@ -339,16 +301,10 @@ class CartViewModel : ViewModel() {
         return when (uf.uppercase()) {
             in sudeste -> 12.0
             in sulECentroOeste -> 18.0
-            else -> 25.0 // Norte e Nordeste
+            else -> 25.0
         }
     }
 
-    /**
-     * Carrega os endereços salvos do usuário (tabela "enderecos") pra tela de
-     * checkout poder oferecer "escolher um salvo" em vez de digitar tudo de novo.
-     * Se ainda não houver nenhum endereço escolhido nesta sessão de checkout,
-     * pré-seleciona o padrão automaticamente (ou o único, se só houver um).
-     */
     fun carregarEnderecosSalvos(userId: String) {
         if (userId.isBlank()) return
 
@@ -374,12 +330,6 @@ class CartViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Usa um endereço já salvo: preenche CEP/número/complemento/cidade-UF e calcula
-     * o frete na hora (sem precisar chamar o ViaCEP de novo, já que os dados já
-     * estão completos). Como o endereço já existe no banco, [_enderecoEncontrado]
-     * fica null — isso sinaliza pro [finalizarCompra] não criar uma linha nova.
-     */
     fun selecionarEnderecoSalvo(endereco: Endereco) {
         _enderecoSelecionadoId.value = endereco.id
         _cep.value = endereco.cep
@@ -391,7 +341,6 @@ class CartViewModel : ViewModel() {
         _enderecoEncontrado.value = null
     }
 
-    /** Sai do modo "endereço salvo" e volta pro formulário de CEP manual, em branco. */
     fun selecionarNovoEndereco() {
         _enderecoSelecionadoId.value = null
         _cep.value = ""
@@ -408,13 +357,6 @@ class CartViewModel : ViewModel() {
         _cupomErro.value = null
     }
 
-    /**
-     * Valida o código digitado contra a tabela "cupons" e, se válido, verifica:
-     * - se o subtotal atinge o valor mínimo exigido;
-     * - se este usuário já usou o cupom antes (limite de 1 uso por usuário);
-     * - se o cupom já atingiu seu limite total de usos (0 = sem limite).
-     * Só aplica o desconto se passar em todas as validações.
-     */
     fun aplicarCupom(userId: String) {
         val codigo = _cupomInput.value.trim()
 
@@ -495,25 +437,6 @@ class CartViewModel : ViewModel() {
         _checkoutState.value = CheckoutState.Idle
     }
 
-    /**
-     * Finaliza a compra em duas etapas:
-     * 1. Simula o processamento do pagamento (com chance de recusa, como um gateway real).
-     * 2. Só se o pagamento for aprovado, valida estoque e cria o pedido (fluxo já existente).
-     *
-     * Antes de criar o pedido, resolve o cliente_id do usuário logado e salva o endereço
-     * usado nesta compra em "enderecos", pra poder linkar pedidos.cliente_id e
-     * pedidos.endereco_id na RPC "criar_pedido".
-     *
-     * IMPORTANTE (pós-migração do banco): "pedidos.cliente_id" e "pedidos.endereco_id"
-     * agora são NOT NULL no Supabase. Por isso, diferente da versão anterior, aqui
-     * bloqueamos o checkout com uma mensagem clara se qualquer um dos dois não puder
-     * ser resolvido — antes, o pedido era criado mesmo assim com esses campos nulos,
-     * o que agora causaria erro de constraint na RPC "criar_pedido".
-     *
-     * O desconto de estoque acontece DENTRO da RPC "criar_pedido" (transação atômica no
-     * banco), então não fazemos mais nenhum ajuste manual de estoque aqui depois de salvar
-     * o pedido — isso evitaria contar o mesmo desconto duas vezes.
-     */
     fun finalizarCompra(userId: String, metodoPagamento: String) {
         val itensAtuais = _itens.value
 
@@ -572,10 +495,6 @@ class CartViewModel : ViewModel() {
                 }
             }
 
-            // Resolve o cliente_id do usuário logado (reaproveita o cache, se a tela de
-            // checkout já tiver carregado os endereços salvos).
-            // ALTERADO: "clientes.id" agora é obrigatório em "pedidos" (NOT NULL). Se não
-            // resolver, bloqueia a compra em vez de criar o pedido com cliente_id nulo.
             val clienteId = clienteIdCache ?: usuarioRepository.buscarClienteId(userId).getOrNull()
             clienteIdCache = clienteId
 
@@ -586,8 +505,6 @@ class CartViewModel : ViewModel() {
                 return@launch
             }
 
-            // Se o usuário escolheu um endereço já salvo, reaproveita o id dele direto —
-            // só grava uma linha nova em "enderecos" quando for endereço digitado na hora.
             var enderecoId: String? = _enderecoSelecionadoId.value
             val enderecoEncontrado = _enderecoEncontrado.value
             if (enderecoId == null && enderecoEncontrado != null) {
@@ -603,10 +520,6 @@ class CartViewModel : ViewModel() {
                 ).getOrNull()
             }
 
-            // ALTERADO: "enderecos.id" agora é obrigatório em "pedidos" (NOT NULL). Antes,
-            // o pedido seguia com endereco_id nulo se a gravação falhasse ou se nenhum
-            // endereço (salvo ou novo) tivesse sido resolvido; agora isso bloqueia a compra
-            // com uma mensagem clara, em vez de deixar a RPC "criar_pedido" estourar erro.
             if (enderecoId == null) {
                 _checkoutState.value = CheckoutState.Erro(
                     "Selecione um endereço salvo ou informe um CEP válido antes de finalizar a compra."
@@ -637,8 +550,6 @@ class CartViewModel : ViewModel() {
             val resultado = orderRepository.salvarPedido(pedido)
             resultado.fold(
                 onSuccess = { pedidoId ->
-                    // Registra o pagamento separadamente. Se falhar, não desfaz a compra —
-                    // o pedido já foi criado e o pagamento (simulado) já foi "aprovado" acima.
                     orderRepository.registrarPagamento(pedidoId, metodoPagamento, pedido.valorTotal)
 
                     _checkoutState.value = CheckoutState.Sucesso(pedidoId)
