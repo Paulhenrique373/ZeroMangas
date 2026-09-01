@@ -8,8 +8,6 @@ import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 @Serializable
 private data class EstoqueDto(
@@ -167,36 +165,4 @@ class MangaRepository {
         }
     }
 
-    /**
-     * Desconta a quantidade comprada do estoque de um produto após a compra ser confirmada.
-     * Chama a função "descontar_estoque" no banco (RPC), que faz a checagem e o desconto
-     * numa única operação atômica: só desconta se ainda houver estoque suficiente naquele
-     * instante, eliminando a janela de tempo entre "ler o estoque" e "gravar o desconto"
-     * (o que antes permitia duas compras simultâneas descontarem o mesmo item indevidamente).
-     * Retorna o estoque restante em caso de sucesso, ou falha com "ESTOQUE_INSUFICIENTE"
-     * se o estoque tiver acabado entre a validação e este momento.
-     */
-    suspend fun descontarEstoque(
-        produtoId: String,
-        quantidadeComprada: Int
-    ): Result<Int> {
-        return try {
-            val parametros = buildJsonObject {
-                put("p_produto_id", produtoId)
-                put("p_quantidade", quantidadeComprada)
-            }
-
-            val estoqueRestante = SupabaseClient.client.postgrest
-                .rpc("descontar_estoque", parametros)
-                .decodeAs<Int>()
-
-            Result.success(estoqueRestante)
-        } catch (e: Exception) {
-            if (e.message?.contains("ESTOQUE_INSUFICIENTE") == true) {
-                Result.failure(Exception("ESTOQUE_INSUFICIENTE"))
-            } else {
-                Result.failure(e)
-            }
-        }
-    }
 }
