@@ -10,10 +10,10 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class ProdutoDto(
-    val id: String = "",
+    @SerialName("id_produto") val id: String = "",
     val nome: String = "",
     @SerialName("marca_id") val marcaId: String = "",
-    @SerialName("categoria_id") val categoriaId: String = "",
+    @SerialName("id_categoria") val categoriaId: String = "",
     val volume: Int = 1,
     val preco: Double = 0.0,
     @SerialName("imagem_url") val imagemUrl: String = "",

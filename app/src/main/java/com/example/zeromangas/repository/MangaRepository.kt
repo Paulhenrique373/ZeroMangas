@@ -7,11 +7,12 @@ import com.example.zeromangas.data.remote.ProdutoDto
 import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
 private data class EstoqueDto(
-    val id: String,
+    @SerialName("id_produto") val id: String,
     val estoque: Int
 )
 
@@ -115,7 +116,7 @@ class MangaRepository {
             val dto = produtosTable
                 .select(columns = Columns.raw("*, marcas(nome), categorias(nome)")) {
                     filter {
-                        eq("id", id)
+                        eq("id_produto", id)
                     }
                 }
                 .decodeList<ProdutoDto>()
@@ -126,8 +127,8 @@ class MangaRepository {
             val recomendadosDtos = produtosTable
                 .select(columns = Columns.raw("*, marcas(nome), categorias(nome)")) {
                     filter {
-                        eq("categoria_id", dto.categoriaId)
-                        neq("id", id)
+                        eq("id_categoria", dto.categoriaId)
+                        neq("id_produto", id)
                     }
                 }
                 .decodeList<ProdutoDto>()
@@ -152,9 +153,9 @@ class MangaRepository {
 
         return try {
             val dtos = produtosTable
-                .select(columns = Columns.list("id", "estoque")) {
+                .select(columns = Columns.list("id_produto", "estoque")) {
                     filter {
-                        isIn("id", produtoIds)
+                        isIn("id_produto", produtoIds)
                     }
                 }
                 .decodeList<EstoqueDto>()
