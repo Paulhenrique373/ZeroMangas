@@ -14,6 +14,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.IOException
+import java.net.ConnectException
+import java.net.UnknownHostException
 
 /**
  * Usuário autenticado no Supabase Auth. Espelha a mesma superfície que o
@@ -230,8 +232,15 @@ class AuthRepository {
             mensagem.contains("email", ignoreCase = true) && mensagem.contains("invalid", ignoreCase = true) ->
                 "E-mail inválido."
 
-            e is IOException || mensagem.contains("network", ignoreCase = true) ->
+            e is UnknownHostException || e.cause is UnknownHostException ||
+                    mensagem.contains("Unable to resolve host", ignoreCase = true) ->
                 "Sem conexão com a internet. Verifique sua rede e tente novamente."
+
+            e is ConnectException || e.cause is ConnectException ->
+                "Não foi possível conectar ao servidor. Tente novamente em instantes."
+
+            e is IOException ->
+                "Não foi possível concluir a conexão: ${mensagem.ifBlank { "erro de comunicação" }}"
 
             else ->
                 "Ocorreu um erro inesperado: $mensagem"

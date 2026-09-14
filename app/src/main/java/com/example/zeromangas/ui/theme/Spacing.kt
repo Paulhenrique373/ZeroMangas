@@ -15,14 +15,30 @@ object Spacing {
     val xl = 32.dp
     val xxl = 48.dp
 
+    // Espaços de composição: margem horizontal de tela, grupos e itens internos.
+    val screenHorizontal = 20.dp
+    val sectionGap = 28.dp
+    val itemGap = 12.dp
+
     // Raios de borda
-    val radiusSmall = 8.dp
+    val radiusSmall = 12.dp
     val radiusMedium = 16.dp
     val radiusLarge = 20.dp
     val radiusPill = 100.dp // usado em chips/botões arredondados totalmente
 
     // Dimensões recorrentes de componentes
-    val mangaCoverWidth = 130.dp
+    val buttonHeight = 52.dp
+    val compactButtonHeight = 40.dp
+    val textFieldMinHeight = 56.dp
+    val iconSmall = 16.dp
+    val iconMedium = 20.dp
+    val iconLarge = 24.dp
+    val touchTarget = 48.dp
+    val borderWidth = 1.dp
+    val subtleElevation = 1.dp
+    // A vitrine horizontal prioriza dois produtos legíveis por vez e uma prévia do
+    // próximo item; três cards estreitos deixam títulos e preços comprimidos.
+    val mangaCoverWidth = 190.dp
     val mangaCoverHeight = 180.dp
     val categoryIconSize = 56.dp
     val bottomNavHeight = 72.dp

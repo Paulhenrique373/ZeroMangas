@@ -45,8 +45,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.ui.components.CategoryChip
 import com.example.zeromangas.ui.components.EmptyState
-import com.example.zeromangas.ui.components.LoadingState
+import com.example.zeromangas.ui.components.ErrorState
 import com.example.zeromangas.ui.components.MangaCardFavoritavel
+import com.example.zeromangas.ui.components.MangaCardSkeleton
 import com.example.zeromangas.ui.theme.home.FiltrosBottomSheet
 import com.example.zeromangas.ui.theme.home.OrdenacaoBottomSheet
 import com.example.zeromangas.ui.theme.Spacing
@@ -112,9 +113,9 @@ fun BuscaScreen(
 
         Text(
             text = "Buscar",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = Spacing.md, end = Spacing.md, top = Spacing.md)
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = Spacing.screenHorizontal, end = Spacing.screenHorizontal, top = Spacing.lg)
         )
 
         Spacer(modifier = Modifier.height(Spacing.md))
@@ -122,7 +123,7 @@ fun BuscaScreen(
         OutlinedTextField(
             value = textoBusca,
             onValueChange = { buscaViewModel.buscar(it) },
-            placeholder = { Text("Buscar por nome, marca ou volume...") },
+            placeholder = { Text("Buscar mangás, autores ou gêneros...") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (textoBusca.isNotBlank()) {
@@ -135,10 +136,11 @@ fun BuscaScreen(
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(Spacing.radiusSmall),
+            shape = MaterialTheme.shapes.small,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md)
+                .height(Spacing.textFieldMinHeight)
+                .padding(horizontal = Spacing.screenHorizontal)
         )
 
         Spacer(modifier = Modifier.height(Spacing.sm))
@@ -147,13 +149,13 @@ fun BuscaScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md),
+                .padding(horizontal = Spacing.screenHorizontal),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             OutlinedButton(
                 onClick = { mostrarFiltros = true },
-                shape = RoundedCornerShape(Spacing.radiusSmall),
-                modifier = Modifier.weight(1f)
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.weight(1f).height(Spacing.compactButtonHeight)
             ) {
                 Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -161,8 +163,8 @@ fun BuscaScreen(
             }
             OutlinedButton(
                 onClick = { mostrarOrdenacao = true },
-                shape = RoundedCornerShape(Spacing.radiusSmall),
-                modifier = Modifier.weight(1f)
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.weight(1f).height(Spacing.compactButtonHeight)
             ) {
                 Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -174,7 +176,7 @@ fun BuscaScreen(
 
         // ---- Disponibilidade ----
         Row(
-            modifier = Modifier.padding(horizontal = Spacing.md),
+            modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),
             verticalAlignment = Alignment.CenterVertically
         ) {
             CategoryChip(
@@ -189,8 +191,8 @@ fun BuscaScreen(
         // ---- Categorias ----
         if (categorias.isNotEmpty()) {
             LazyRow(
-                contentPadding = PaddingValues(horizontal = Spacing.md),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 items(categorias, key = { it }) { categoria ->
                     CategoryChip(
@@ -204,9 +206,9 @@ fun BuscaScreen(
         }
 
         when {
-            carregando && mangas.isEmpty() -> LoadingState(modifier = Modifier.weight(1f))
+            carregando && mangas.isEmpty() -> CatalogLoadingGrid()
 
-            erro != null && mangas.isEmpty() -> EmptyState(
+            erro != null && mangas.isEmpty() -> ErrorState(
                 titulo = "Não foi possível carregar",
                 subtitulo = erro,
                 modifier = Modifier.weight(1f),
@@ -273,13 +275,13 @@ fun BuscaScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     contentPadding = PaddingValues(
-                        start = Spacing.md,
-                        end = Spacing.md,
+                        start = Spacing.screenHorizontal,
+                        end = Spacing.screenHorizontal,
                         top = Spacing.sm,
                         bottom = Spacing.xl
                     ),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.lg),
                     modifier = Modifier.weight(1f)
                 ) {
                     // ETAPA 4 (Busca): "estado bonito" de resultado encontrado —
@@ -304,7 +306,8 @@ fun BuscaScreen(
                                 registrarPesquisa(textoBusca)
                                 onMangaClick(manga)
                             },
-                            onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+                            onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) },
+                            preencherLargura = true
                         )
                     }
                 }
@@ -337,5 +340,20 @@ fun BuscaScreen(
             },
             onFechar = { mostrarOrdenacao = false }
         )
+    }
+}
+
+@Composable
+private fun CatalogLoadingGrid() {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.screenHorizontal),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
+    ) {
+        gridItems((1..6).toList()) {
+            MangaCardSkeleton(preencherLargura = true)
+        }
     }
 }

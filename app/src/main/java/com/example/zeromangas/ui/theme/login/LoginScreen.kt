@@ -2,8 +2,11 @@ package com.example.zeromangas.ui.theme.login
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Email
@@ -16,7 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -24,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.zeromangas.ui.components.PrimaryButton
+import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.FundoPrincipal
 import com.example.zeromangas.ui.theme.RoxoNeon
 import com.example.zeromangas.ui.theme.Spacing
@@ -32,14 +37,6 @@ import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.viewmodel.AuthState
 import com.example.zeromangas.viewmodel.AuthViewModel
 
-/**
- * ETAPA 11 (polimento, parte 4): Login e Cadastro nunca tinham recebido o design
- * system (continuavam com o Button/OutlinedTextField "cru" da Etapa 0). Aqui elas
- * ganham: PrimaryButton (mesmo feedback tátil do resto do app), um ícone de marca em
- * vez de só texto solto, e o toggle de mostrar/ocultar senha que já estava previsto
- * desde o planejamento original mas nunca tinha sido implementado. Nenhuma linha do
- * [AuthViewModel] foi alterada — login(email, senha) e o AuthState continuam iguais.
- */
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -49,146 +46,119 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
     var senhaVisivel by remember { mutableStateOf(false) }
-
     val authState by authViewModel.authState.collectAsState()
+    val foco = LocalFocusManager.current
+    val entrar = {
+        foco.clearFocus()
+        authViewModel.login(email.trim(), senha)
+    }
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Sucesso) {
-            onLoginSucesso()
             authViewModel.resetarEstado()
+            onLoginSucesso()
         }
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(FundoPrincipal)
-            .padding(Spacing.lg),
+        modifier = Modifier.fillMaxSize().background(FundoPrincipal).imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(
+                horizontal = Spacing.screenHorizontal,
+                vertical = Spacing.xl
+            ),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             LogoZeroMangas()
-
-            Spacer(modifier = Modifier.height(Spacing.sm))
-
-            Text(
-                text = "Entre na sua conta",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextoSecundario
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.xl))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.md))
-
-            CampoSenha(
-                senha = senha,
-                onSenhaChange = { senha = it },
-                visivel = senhaVisivel,
-                onToggleVisivel = { senhaVisivel = !senhaVisivel }
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.sm))
-
-            if (authState is AuthState.Erro) {
-                Text(
-                    text = (authState as AuthState.Erro).mensagem,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(Modifier.height(Spacing.xl))
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Bem-vindo de volta", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+                Text("Entre para continuar sua coleção.", style = MaterialTheme.typography.bodyMedium, color = TextoSecundario)
             }
+            Spacer(Modifier.height(Spacing.lg))
 
-            Spacer(modifier = Modifier.height(Spacing.md))
-
-            PrimaryButton(
-                text = "Entrar",
-                onClick = { authViewModel.login(email, senha) },
-                enabled = authState !is AuthState.Loading,
-                loading = authState is AuthState.Loading,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.md))
-
+            Surface(color = FundoCard, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.md)) {
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it; if (authState is AuthState.Erro) authViewModel.resetarEstado() },
+                        label = { Text("E-mail") },
+                        placeholder = { Text("voce@email.com") },
+                        leadingIcon = { Icon(Icons.Default.Email, null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(Spacing.md))
+                    CampoSenha(
+                        senha = senha,
+                        onSenhaChange = { senha = it; if (authState is AuthState.Erro) authViewModel.resetarEstado() },
+                        visivel = senhaVisivel,
+                        onToggleVisivel = { senhaVisivel = !senhaVisivel },
+                        imeAction = ImeAction.Done,
+                        onDone = entrar
+                    )
+                    if (authState is AuthState.Erro) {
+                        Spacer(Modifier.height(Spacing.sm))
+                        AuthError((authState as AuthState.Erro).mensagem)
+                    }
+                    Spacer(Modifier.height(Spacing.lg))
+                    PrimaryButton("Entrar", entrar, Modifier.fillMaxWidth(), enabled = authState !is AuthState.Loading, loading = authState is AuthState.Loading)
+                }
+            }
+            Spacer(Modifier.height(Spacing.md))
             TextButton(onClick = onIrParaCadastro) {
-                Text("Não tem conta? Cadastre-se", color = RoxoNeon)
+                Text("Ainda não tem conta? ")
+                Text("Cadastrar", color = RoxoNeon)
             }
         }
     }
 }
 
-/**
- * Ícone + nome do app, reaproveitado no Login e no Cadastro pra dar uma identidade
- * visual mínima nas duas telas (antes era só um Text solto).
- */
 @Composable
 internal fun LogoZeroMangas() {
-    Box(
-        modifier = Modifier
-            .size(72.dp)
-            .clip(RoundedCornerShape(Spacing.radiusLarge))
-            .background(RoxoNeon.copy(alpha = 0.15f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.AutoStories,
-            contentDescription = null,
-            tint = RoxoNeon,
-            modifier = Modifier.size(36.dp)
-        )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(color = RoxoNeon.copy(alpha = .16f), shape = RoundedCornerShape(Spacing.radiusLarge), modifier = Modifier.size(72.dp)) {
+            Icon(Icons.Default.AutoStories, null, tint = RoxoNeon, modifier = Modifier.padding(18.dp))
+        }
+        Spacer(Modifier.height(Spacing.sm))
+        Text("ZeroMangás", style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
     }
-    Spacer(modifier = Modifier.height(Spacing.sm))
-    Text(
-        text = "ZeroMangás",
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-        color = TextoPrincipal
-    )
 }
 
-/**
- * Campo de senha com botão de olho pra mostrar/ocultar o texto digitado.
- * Usado no Login e no Cadastro (e, no Cadastro, também no campo "Confirmar senha").
- */
 @Composable
 internal fun CampoSenha(
     senha: String,
     onSenhaChange: (String) -> Unit,
     visivel: Boolean,
     onToggleVisivel: () -> Unit,
-    label: String = "Senha"
+    label: String = "Senha",
+    imeAction: ImeAction = ImeAction.Done,
+    onDone: () -> Unit = {}
 ) {
     OutlinedTextField(
         value = senha,
         onValueChange = onSenhaChange,
         label = { Text(label) },
-        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+        leadingIcon = { Icon(Icons.Default.Lock, null) },
         trailingIcon = {
-            val icone: ImageVector = if (visivel) Icons.Default.VisibilityOff else Icons.Default.Visibility
-            val descricao = if (visivel) "Ocultar senha" else "Mostrar senha"
             IconButton(onClick = onToggleVisivel) {
-                Icon(icone, contentDescription = descricao, tint = TextoSecundario)
+                Icon(if (visivel) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (visivel) "Ocultar senha" else "Mostrar senha", tint = TextoSecundario)
             }
         },
         visualTransformation = if (visivel) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+@Composable
+internal fun AuthError(mensagem: String) {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
+        Text(mensagem, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Start, modifier = Modifier.padding(Spacing.sm))
+    }
 }

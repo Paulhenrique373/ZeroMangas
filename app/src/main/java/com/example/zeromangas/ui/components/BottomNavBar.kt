@@ -21,9 +21,8 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.zeromangas.ui.theme.FundoCard
-import com.example.zeromangas.ui.theme.RoxoNeon
-import com.example.zeromangas.ui.theme.TextoSecundario
+import androidx.compose.ui.unit.dp
+import com.example.zeromangas.ui.theme.Spacing
 
 /**
  * Abas da navegação inferior do app. A rota de cada aba é a mesma
@@ -38,8 +37,8 @@ enum class AbaPrincipal(
 ) {
     HOME("home", "Início", Icons.Filled.Home, Icons.Outlined.Home),
     BUSCA("busca", "Buscar", Icons.Filled.Search, Icons.Outlined.Search),
-    CARRINHO("carrinho", "Carrinho", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart),
     FAVORITOS("favoritos", "Favoritos", Icons.Filled.Favorite, Icons.Outlined.Favorite),
+    CARRINHO("carrinho", "Carrinho", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart),
     PERFIL("perfil", "Perfil", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
@@ -57,8 +56,9 @@ fun BottomNavBar(
     onAbaSelecionada: (AbaPrincipal) -> Unit
 ) {
     NavigationBar(
-        containerColor = FundoCard,
-        contentColor = TextoSecundario
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        tonalElevation = 0.dp
     ) {
         AbaPrincipal.entries.forEach { aba ->
             val selecionado = rotaAtual == aba.rota
@@ -69,7 +69,7 @@ fun BottomNavBar(
                 icon = {
                     if (aba == AbaPrincipal.CARRINHO && quantidadeNoCarrinho > 0) {
                         BadgedBox(
-                            badge = { Badge { Text("$quantidadeNoCarrinho") } }
+                            badge = { Badge { Text(if (quantidadeNoCarrinho > 99) "99+" else quantidadeNoCarrinho.toString()) } }
                         ) {
                             Icon(
                                 imageVector = if (selecionado) aba.iconeSelecionado else aba.iconeNaoSelecionado,
@@ -85,11 +85,11 @@ fun BottomNavBar(
                 },
                 label = { Text(aba.rotulo, style = MaterialTheme.typography.labelSmall) },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = RoxoNeon,
-                    selectedTextColor = RoxoNeon,
-                    unselectedIconColor = TextoSecundario,
-                    unselectedTextColor = TextoSecundario,
-                    indicatorColor = FundoCard
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                 )
             )
         }

@@ -1,8 +1,7 @@
 package com.example.zeromangas.ui.components
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,9 +9,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,8 @@ import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.ui.theme.VermelhoErro
+
+enum class MangaCardState { NORMAL, PRESSIONADO, LOADING, INDISPONIVEL }
 
 /**
  * Card vertical de mangá, usado em LazyRows (Mais vendidos, Lançamentos) e grids
@@ -52,19 +56,25 @@ fun MangaCard(
     manga: Manga,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    precoAntigo: Double? = null
+    precoAntigo: Double? = null,
+    state: MangaCardState = if (manga.estoque <= 0) MangaCardState.INDISPONIVEL else MangaCardState.NORMAL,
+    preencherLargura: Boolean = false
 ) {
+    if (state == MangaCardState.LOADING) {
+        MangaCardSkeleton(modifier = modifier, preencherLargura = preencherLargura)
+        return
+    }
     val interactionSource = remember { MutableInteractionSource() }
     val pressionado by interactionSource.collectIsPressedAsState()
     val escala by animateFloatAsState(
-        targetValue = if (pressionado) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressionado || state == MangaCardState.PRESSIONADO) 0.98f else 1f,
+        animationSpec = tween(durationMillis = 110),
         label = "escalaMangaCard"
     )
 
     Column(
         modifier = modifier
-            .width(Spacing.mangaCoverWidth)
+            .then(if (preencherLargura) Modifier.fillMaxWidth() else Modifier.width(Spacing.mangaCoverWidth))
             .scale(escala)
             .clickable(
                 interactionSource = interactionSource,
@@ -73,10 +83,11 @@ fun MangaCard(
     ) {
         Box(
             modifier = Modifier
-                .width(Spacing.mangaCoverWidth)
+                .fillMaxWidth()
+                .shadow(Spacing.subtleElevation, RoundedCornerShape(Spacing.radiusMedium))
                 .clip(RoundedCornerShape(Spacing.radiusMedium))
                 .background(FundoCard)
-                .border(1.dp, BordaSutil, RoundedCornerShape(Spacing.radiusMedium))
+                .border(Spacing.borderWidth, BordaSutil, RoundedCornerShape(Spacing.radiusMedium))
         ) {
             AsyncImage(
                 model = manga.imagemUrl,
@@ -87,7 +98,10 @@ fun MangaCard(
                     .aspectRatioCapa()
             )
 
-            if (manga.estoque <= 0) {
+            if (manga.emPromocao && manga.precoPromocional != null && manga.precoPromocional < manga.preco) {
+                ProductBadge(text = "Oferta", modifier = Modifier.align(Alignment.TopStart).padding(Spacing.xs))
+            }
+            if (state == MangaCardState.INDISPONIVEL) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -97,7 +111,7 @@ fun MangaCard(
                         .padding(horizontal = Spacing.sm, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "Esgotado",
+                        text = "Indisponível",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextoPrincipal
                     )
@@ -109,20 +123,68 @@ fun MangaCard(
             text = manga.nome,
             style = MaterialTheme.typography.bodyMedium,
             color = TextoPrincipal,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = Spacing.sm)
+            modifier = Modifier
+                .padding(top = Spacing.sm)
+                .height(42.dp)
         )
-        Text(
-            text = "Vol. ${manga.volume}",
-            style = MaterialTheme.typography.labelSmall,
-            color = TextoSecundario
-        )
+        if (!manga.nome.contains(Regex("\\bvol\\.?\\s*${manga.volume}\\b", RegexOption.IGNORE_CASE))) {
+            Text(
+                text = "Vol. ${manga.volume}",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextoSecundario
+            )
+        } else {
+            Text(
+                text = manga.marca.ifBlank { "Mangá" },
+                style = MaterialTheme.typography.labelSmall,
+                color = TextoSecundario
+            )
+        }
+        if (manga.totalAvaliacoes > 0) {
+            RatingStars(
+                nota = manga.notaMedia,
+                tamanhoEstrela = Spacing.iconSmall,
+                modifier = Modifier.padding(top = Spacing.xs)
+            )
+        }
+        val precoAtual = manga.precoPromocional?.takeIf { manga.emPromocao && it < manga.preco } ?: manga.preco
         PriceText(
-            preco = manga.preco,
-            precoAntigo = precoAntigo,
+            preco = precoAtual,
+            precoAntigo = precoAntigo ?: manga.preco.takeIf { precoAtual < it },
             modifier = Modifier.padding(top = Spacing.xs)
         )
+    }
+}
+
+@Composable
+private fun ProductBadge(text: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Spacing.radiusPill))
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
+    }
+}
+
+/** Placeholder estrutural usado enquanto uma grade de catálogo é carregada. */
+@Composable
+fun MangaCardSkeleton(modifier: Modifier = Modifier, preencherLargura: Boolean = false) {
+    Column(modifier = modifier.then(if (preencherLargura) Modifier.fillMaxWidth() else Modifier.width(Spacing.mangaCoverWidth))) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(Spacing.mangaCoverHeight)
+                .clip(RoundedCornerShape(Spacing.radiusMedium))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Box(modifier = Modifier.fillMaxWidth(0.82f).height(14.dp).clip(RoundedCornerShape(Spacing.radiusPill)).background(MaterialTheme.colorScheme.surfaceVariant))
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Box(modifier = Modifier.fillMaxWidth(0.45f).height(12.dp).clip(RoundedCornerShape(Spacing.radiusPill)).background(MaterialTheme.colorScheme.surfaceVariant))
     }
 }
 
@@ -131,4 +193,4 @@ fun MangaCard(
  * Extraída como extension pra manter o height consistente sem repetir número mágico.
  */
 private fun Modifier.aspectRatioCapa(): Modifier =
-    this.then(Modifier.height(Spacing.mangaCoverHeight))
+    this.then(Modifier.aspectRatio(2f / 3f))

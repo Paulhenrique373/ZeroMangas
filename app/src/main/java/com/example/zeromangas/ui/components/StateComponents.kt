@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -18,10 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.zeromangas.ui.theme.RoxoNeon
 import com.example.zeromangas.ui.theme.Spacing
-import com.example.zeromangas.ui.theme.TextoSecundario
 
 /**
  * Indicador de carregamento centralizado, padrão para o app todo.
@@ -33,7 +33,7 @@ fun LoadingState(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(color = RoxoNeon)
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -67,19 +67,21 @@ fun EmptyState(
             Icon(
                 imageVector = icone,
                 contentDescription = null,
-                tint = TextoSecundario,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(56.dp)
             )
             Text(
                 text = titulo,
                 style = MaterialTheme.typography.titleMedium,
-                color = TextoSecundario
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
             )
             if (subtitulo != null) {
                 Text(
                     text = subtitulo,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextoSecundario
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
                 )
             }
             if (textoAcao != null && onAcaoClick != null) {
@@ -88,6 +90,39 @@ fun EmptyState(
                     text = textoAcao,
                     onClick = onAcaoClick
                 )
+            }
+        }
+    }
+}
+
+/** Estado de erro reutilizável, com ação de recuperação opcional. */
+@Composable
+fun ErrorState(
+    titulo: String,
+    modifier: Modifier = Modifier,
+    subtitulo: String? = null,
+    textoAcao: String? = null,
+    onAcaoClick: (() -> Unit)? = null
+) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.padding(Spacing.xl)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ErrorOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(56.dp)
+            )
+            Text(titulo, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+            subtitulo?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
+            if (textoAcao != null && onAcaoClick != null) {
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                SecondaryButton(text = textoAcao, onClick = onAcaoClick)
             }
         }
     }

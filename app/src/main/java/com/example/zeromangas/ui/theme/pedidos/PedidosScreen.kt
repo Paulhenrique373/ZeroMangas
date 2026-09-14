@@ -46,7 +46,8 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun PedidosScreen(
     usuarioId: String,
-    onVoltar: () -> Unit
+    onVoltar: () -> Unit,
+    onExplorarClick: () -> Unit = {}
 ) {
     val orderRepository = remember { OrderRepository() }
     val escopo = rememberCoroutineScope()
@@ -108,12 +109,16 @@ fun PedidosScreen(
             IconButton(onClick = onVoltar) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
             }
-            Text(
-                text = "Meus Pedidos",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal,
-                modifier = Modifier.padding(start = Spacing.sm)
-            )
+            Column(modifier = Modifier.padding(start = Spacing.sm)) {
+                Text("Meus pedidos", style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
+                if (pedidos.isNotEmpty()) {
+                    Text(
+                        text = "${pedidos.size} ${if (pedidos.size == 1) "pedido" else "pedidos"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextoSecundario
+                    )
+                }
+            }
         }
 
         if (erroCancelamento != null) {
@@ -148,7 +153,9 @@ fun PedidosScreen(
                 EmptyState(
                     titulo = "Você ainda não fez nenhum pedido",
                     subtitulo = "Seus pedidos aparecerão aqui depois da primeira compra.",
-                    icone = Icons.Outlined.Inventory2
+                    icone = Icons.Outlined.Inventory2,
+                    textoAcao = "Explorar mangás",
+                    onAcaoClick = onExplorarClick
                 )
             }
             else -> {
@@ -204,6 +211,7 @@ fun PedidoCard(
     val itensRestantes = pedido.itens.size - 1
 
     var mostrarConfirmacao by remember { mutableStateOf(false) }
+    var detalhesExpandidos by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -275,7 +283,16 @@ fun PedidoCard(
         HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
         Spacer(modifier = Modifier.height(Spacing.sm))
 
-        if (statusAtual != "Cancelado") {
+        TextButton(
+            onClick = { detalhesExpandidos = !detalhesExpandidos },
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text(if (detalhesExpandidos) "Ocultar detalhes" else "Ver detalhes")
+        }
+
+        if (detalhesExpandidos && statusAtual != "Cancelado") {
+            Text("Acompanhamento", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+            Spacer(modifier = Modifier.height(Spacing.xs))
             AcompanhamentoPedido(statusAtual = statusAtual)
             Spacer(modifier = Modifier.height(Spacing.sm))
             HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))

@@ -1,9 +1,9 @@
 package com.example.zeromangas.ui.theme.checkout
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -22,16 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.Endereco
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.formatarPrecoBr
-import com.example.zeromangas.ui.theme.FundoCard
-import com.example.zeromangas.ui.theme.RoxoNeon
-import com.example.zeromangas.ui.theme.RoxoNeonClaro
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
@@ -40,8 +35,7 @@ import com.example.zeromangas.ui.theme.cart.SecaoFrete
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.CheckoutState
 
-private enum class EtapaCheckout { ENDERECO, PAGAMENTO }
-
+private enum class EtapaCheckout { ENTREGA, PAGAMENTO, RESUMO }
 private data class MetodoPagamento(val nome: String, val icone: ImageVector)
 
 private val metodosPagamento = listOf(
@@ -50,14 +44,7 @@ private val metodosPagamento = listOf(
     MetodoPagamento("Boleto", Icons.Default.ReceiptLong)
 )
 
-/**
- * Tela de checkout, organizada em duas etapas (Endereço → Pagamento), como pedido no
- * planejamento. Toda a lógica continua 100% no [CartViewModel] já existente — esta tela
- * só reorganiza visualmente o que antes eram dois AlertDialogs dentro da CartScreen.
- * A etapa de Endereço reaproveita o [SecaoFrete] já usado no carrinho (mesmo cálculo de
- * frete via ViaCEP), então nenhuma lógica de negócio nova foi criada.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Checkout em etapas. Endereços, frete, cupom e confirmação continuam no CartViewModel. */
 @Composable
 fun CheckoutScreen(
     cartViewModel: CartViewModel,
@@ -73,27 +60,22 @@ fun CheckoutScreen(
     val cidadeUf by cartViewModel.cidadeUf.collectAsState()
     val numero by cartViewModel.numero.collectAsState()
     val complemento by cartViewModel.complemento.collectAsState()
-    val cupomAplicado by cartViewModel.cupomAplicado.collectAsState()
     val desconto by cartViewModel.desconto.collectAsState()
     val checkoutState by cartViewModel.checkoutState.collectAsState()
     val enderecosSalvos by cartViewModel.enderecosSalvos.collectAsState()
-    val carregandoEnderecosSalvos by cartViewModel.carregandoEnderecosSalvos.collectAsState()
+    val carregandoEnderecos by cartViewModel.carregandoEnderecosSalvos.collectAsState()
     val enderecoSelecionadoId by cartViewModel.enderecoSelecionadoId.collectAsState()
-
     val subtotal = itens.sumOf { it.subtotal }
     val total = subtotal + (frete ?: 0.0) - desconto
 
-    var etapa by remember { mutableStateOf(EtapaCheckout.ENDERECO) }
+    var etapa by remember { mutableStateOf(EtapaCheckout.ENTREGA) }
     var metodoSelecionado by remember { mutableStateOf<String?>(null) }
+    var escolhendoEndereco by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
-        cartViewModel.carregarEnderecosSalvos(usuarioId)
-    }
-
+    LaunchedEffect(usuarioId) { cartViewModel.carregarEnderecosSalvos(usuarioId) }
     LaunchedEffect(checkoutState) {
-        val estado = checkoutState
-        if (estado is CheckoutState.Sucesso) {
-            val pedidoId = estado.pedidoId
+        if (checkoutState is CheckoutState.Sucesso) {
+            val pedidoId = (checkoutState as CheckoutState.Sucesso).pedidoId
             cartViewModel.resetarCheckout()
             onCompraFinalizada(pedidoId)
         }
@@ -101,184 +83,150 @@ fun CheckoutScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = {
-                if (etapa == EtapaCheckout.PAGAMENTO) etapa = EtapaCheckout.ENDERECO else onVoltar()
-            }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextoPrincipal)
-            }
-            Text(
-                text = "Finalizar Compra",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal,
-                modifier = Modifier.padding(start = Spacing.sm)
-            )
+                when (etapa) {
+                    EtapaCheckout.ENTREGA -> onVoltar()
+                    EtapaCheckout.PAGAMENTO -> etapa = EtapaCheckout.ENTREGA
+                    EtapaCheckout.RESUMO -> etapa = EtapaCheckout.PAGAMENTO
+                }
+            }) { Icon(Icons.Default.ArrowBack, "Voltar", tint = TextoPrincipal) }
+            Text("Checkout", style = MaterialTheme.typography.titleLarge, color = TextoPrincipal, modifier = Modifier.padding(start = Spacing.xs))
         }
 
-        IndicadorDeEtapas(etapaAtual = etapa)
+        IndicadorDeEtapas(etapa)
+        HorizontalDivider(modifier = Modifier.padding(top = Spacing.md), color = MaterialTheme.colorScheme.outlineVariant)
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = Spacing.lg)
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(Spacing.screenHorizontal),
+            verticalArrangement = Arrangement.spacedBy(Spacing.itemGap)
         ) {
-            Spacer(modifier = Modifier.height(Spacing.md))
-
             when (etapa) {
-                EtapaCheckout.ENDERECO -> {
-                    if (carregandoEnderecosSalvos && enderecosSalvos.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = RoxoNeon, modifier = Modifier.size(28.dp))
+                EtapaCheckout.ENTREGA -> item {
+                    CabecalhoEtapa("1. Entrega", "Escolha onde deseja receber seu pedido")
+                    if (carregandoEnderecos && enderecosSalvos.isEmpty()) {
+                        Box(Modifier.fillMaxWidth().padding(Spacing.xl), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         }
-                    }
-
-                    if (enderecosSalvos.isNotEmpty()) {
-                        Text("Escolha um endereço", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-
+                    } else if (!escolhendoEndereco && enderecoSelecionadoId != null) {
+                        val endereco = enderecosSalvos.firstOrNull { it.id == enderecoSelecionadoId }
+                        if (endereco != null) CartaoEndereco(endereco, true, {})
+                        TextButton(onClick = { escolhendoEndereco = true }) { Text("Alterar endereço") }
+                    } else {
                         enderecosSalvos.forEach { endereco ->
-                            CartaoEnderecoSalvo(
-                                endereco = endereco,
-                                selecionado = enderecoSelecionadoId == endereco.id,
-                                onClick = { cartViewModel.selecionarEnderecoSalvo(endereco) }
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            CartaoEndereco(endereco, enderecoSelecionadoId == endereco.id) {
+                                cartViewModel.selecionarEnderecoSalvo(endereco)
+                                escolhendoEndereco = false
+                            }
+                            Spacer(Modifier.height(Spacing.sm))
                         }
-
-                        CartaoNovoEndereco(
-                            selecionado = enderecoSelecionadoId == null,
-                            onClick = { cartViewModel.selecionarNovoEndereco() }
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.md))
+                        OutlinedButton(
+                            onClick = {
+                                cartViewModel.selecionarNovoEndereco()
+                                escolhendoEndereco = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, null, modifier = Modifier.size(Spacing.iconMedium))
+                            Spacer(Modifier.width(Spacing.xs))
+                            Text("Adicionar endereço")
+                        }
                     }
 
                     if (enderecoSelecionadoId == null) {
-                        SecaoFrete(
-                            cep = cep,
-                            cepErro = cepErro,
-                            frete = frete,
-                            calculando = calculandoFrete,
-                            cidadeUf = cidadeUf,
-                            onCepChange = { cartViewModel.atualizarCep(it) },
-                            onCalcularFrete = { cartViewModel.calcularFrete() }
-                        )
-
+                        Spacer(Modifier.height(Spacing.sm))
+                        SecaoFrete(cep, cepErro, frete, calculandoFrete, cidadeUf, cartViewModel::atualizarCep, cartViewModel::calcularFrete)
                         if (frete != null) {
-                            Spacer(modifier = Modifier.height(Spacing.md))
-                            OutlinedTextField(
-                                value = numero,
-                                onValueChange = { cartViewModel.atualizarNumero(it) },
-                                label = { Text("Número") },
-                                singleLine = true,
-                                isError = numero.isBlank(),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            if (numero.isBlank()) {
-                                Spacer(modifier = Modifier.height(Spacing.xs))
-                                Text(
-                                    text = "Informe o número para continuar.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(Spacing.sm))
-                            OutlinedTextField(
-                                value = complemento,
-                                onValueChange = { cartViewModel.atualizarComplemento(it) },
-                                label = { Text("Complemento (opcional)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            Spacer(Modifier.height(Spacing.sm))
+                            OutlinedTextField(numero, cartViewModel::atualizarNumero, Modifier.fillMaxWidth(), label = { Text("Número") }, singleLine = true, isError = numero.isBlank())
+                            if (numero.isBlank()) Text("Informe o número para continuar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.height(Spacing.sm))
+                            OutlinedTextField(complemento, cartViewModel::atualizarComplemento, Modifier.fillMaxWidth(), label = { Text("Complemento (opcional)") }, singleLine = true)
                         }
                     }
                 }
 
-                EtapaCheckout.PAGAMENTO -> {
-                    Text("Escolha a forma de pagamento", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-
+                EtapaCheckout.PAGAMENTO -> item {
+                    CabecalhoEtapa("2. Pagamento", "Selecione como deseja pagar")
                     metodosPagamento.forEach { metodo ->
-                        CartaoMetodoPagamento(
-                            metodo = metodo,
-                            selecionado = metodoSelecionado == metodo.nome,
-                            onClick = { metodoSelecionado = metodo.nome }
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        CartaoMetodoPagamento(metodo, metodoSelecionado == metodo.nome) { metodoSelecionado = metodo.nome }
+                        Spacer(Modifier.height(Spacing.sm))
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Spacing.radiusMedium))
-                            .background(FundoCard)
-                            .padding(Spacing.md)
-                    ) {
-                        Text("Resumo do pedido", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        LinhaResumo(rotulo = "Itens", valor = null, textoAlternativo = "${itens.sumOf { it.quantidade }}")
-                        LinhaResumo(rotulo = "Subtotal", valor = subtotal)
-                        LinhaResumo(rotulo = "Frete", valor = frete)
-                        if (cupomAplicado != null) {
-                            LinhaResumo(
-                                rotulo = "Desconto (${cupomAplicado?.codigo})",
-                                valor = null,
-                                textoAlternativo = "- ${formatarPrecoBr(desconto)}"
-                            )
+                EtapaCheckout.RESUMO -> {
+                    item {
+                        CabecalhoEtapa("3. Resumo", "Revise seu pedido antes de confirmar")
+                        val endereco = enderecosSalvos.firstOrNull { it.id == enderecoSelecionadoId }
+                        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(Spacing.md)) {
+                                Text("Entrega", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                                Text(
+                                    endereco?.let { "${it.logradouro}, ${it.numero} · ${it.cidade}/${it.uf}" } ?: "Endereço informado pelo CEP",
+                                    style = MaterialTheme.typography.bodySmall, color = TextoSecundario
+                                )
+                                TextButton(onClick = { etapa = EtapaCheckout.ENTREGA }) { Text("Alterar") }
+                            }
                         }
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Total", style = MaterialTheme.typography.titleMedium, color = TextoPrincipal)
-                            Text(
-                                text = formatarPrecoBr(total),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = RoxoNeonClaro
-                            )
+                        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Pagamento", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                                    Text(metodoSelecionado.orEmpty(), style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
+                                }
+                                TextButton(onClick = { etapa = EtapaCheckout.PAGAMENTO }) { Text("Alterar") }
+                            }
                         }
                     }
-
-                    if (checkoutState is CheckoutState.Erro) {
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        Text(
-                            text = (checkoutState as CheckoutState.Erro).mensagem,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                    item {
+                        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(Spacing.md)) {
+                                Text("Produtos", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                                Spacer(Modifier.height(Spacing.sm))
+                                itens.forEach { item ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("${item.quantidade}x ${item.manga.nome}", style = MaterialTheme.typography.bodyMedium, color = TextoSecundario, modifier = Modifier.weight(1f))
+                                        Text(formatarPrecoBr(item.subtotal), style = MaterialTheme.typography.bodyMedium, color = TextoPrincipal)
+                                    }
+                                    Spacer(Modifier.height(Spacing.xs))
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = Spacing.sm))
+                                LinhaResumo("Subtotal", subtotal)
+                                LinhaResumo("Frete", frete)
+                                LinhaResumo("Desconto", null, if (desconto > 0) "− ${formatarPrecoBr(desconto)}" else "—", desconto > 0)
+                                Spacer(Modifier.height(Spacing.sm))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Total", style = MaterialTheme.typography.titleMedium, color = TextoPrincipal)
+                                    Text(formatarPrecoBr(total), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                    if (checkoutState is CheckoutState.Erro) item {
+                        Text((checkoutState as CheckoutState.Erro).mensagem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
         }
 
-        Column(modifier = Modifier.fillMaxWidth().padding(Spacing.lg)) {
-            when (etapa) {
-                EtapaCheckout.ENDERECO -> {
-                    PrimaryButton(
-                        text = "Continuar para pagamento",
-                        onClick = { etapa = EtapaCheckout.PAGAMENTO },
-                        enabled = frete != null && numero.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
+        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = Spacing.subtleElevation, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)) {
+                when (etapa) {
+                    EtapaCheckout.ENTREGA -> PrimaryButton(
+                        "Continuar para pagamento", { etapa = EtapaCheckout.PAGAMENTO }, Modifier.fillMaxWidth(),
+                        enabled = frete != null && numero.isNotBlank()
                     )
-                }
-
-                EtapaCheckout.PAGAMENTO -> {
-                    PrimaryButton(
-                        text = "Confirmar Pedido",
-                        onClick = {
-                            metodoSelecionado?.let { cartViewModel.finalizarCompra(usuarioId, it) }
-                        },
+                    EtapaCheckout.PAGAMENTO -> PrimaryButton(
+                        "Revisar pedido", { etapa = EtapaCheckout.RESUMO }, Modifier.fillMaxWidth(),
+                        enabled = metodoSelecionado != null
+                    )
+                    EtapaCheckout.RESUMO -> PrimaryButton(
+                        "Confirmar pedido", { metodoSelecionado?.let { cartViewModel.finalizarCompra(usuarioId, it) } }, Modifier.fillMaxWidth(),
                         enabled = metodoSelecionado != null && checkoutState !is CheckoutState.Carregando,
-                        loading = checkoutState is CheckoutState.Carregando,
-                        modifier = Modifier.fillMaxWidth()
+                        loading = checkoutState is CheckoutState.Carregando
                     )
                 }
             }
@@ -286,160 +234,63 @@ fun CheckoutScreen(
     }
 }
 
-/** Card selecionável de um endereço já salvo, na etapa de Endereço do checkout. */
 @Composable
-private fun CartaoEnderecoSalvo(
-    endereco: Endereco,
-    selecionado: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Spacing.radiusMedium))
-            .background(if (selecionado) RoxoNeon.copy(alpha = 0.12f) else FundoCard)
-            .clickable { onClick() }
-            .padding(Spacing.md),
-        verticalAlignment = Alignment.Top
+private fun CabecalhoEtapa(titulo: String, descricao: String) {
+    Column(modifier = Modifier.padding(bottom = Spacing.sm)) {
+        Text(titulo, style = MaterialTheme.typography.titleLarge, color = TextoPrincipal)
+        Text(descricao, style = MaterialTheme.typography.bodyMedium, color = TextoSecundario)
+    }
+}
+
+@Composable
+private fun CartaoEndereco(endereco: Endereco, selecionado: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = if (selecionado) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        Icon(
-            imageVector = Icons.Default.LocationOn,
-            contentDescription = null,
-            tint = if (selecionado) RoxoNeonClaro else TextoSecundario
-        )
-        Spacer(modifier = Modifier.width(Spacing.md))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = endereco.nomeDestinatario.ifBlank { "Endereço" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (selecionado) FontWeight.Medium else FontWeight.Normal,
-                    color = if (selecionado) TextoPrincipal else TextoSecundario
-                )
-                if (endereco.padrao) {
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("· Padrão", style = MaterialTheme.typography.labelSmall, color = RoxoNeonClaro)
-                }
+        Row(Modifier.padding(Spacing.md), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(endereco.nomeDestinatario.ifBlank { "Endereço" }, style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                Text("${endereco.logradouro}, ${endereco.numero} · ${endereco.bairro}\n${endereco.cidade}/${endereco.uf}", style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
             }
-            Text(
-                text = "${endereco.logradouro}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade}/${endereco.uf}",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextoSecundario
-            )
-        }
-        if (selecionado) {
-            Icon(Icons.Default.Check, contentDescription = "Selecionado", tint = RoxoNeonClaro)
+            if (selecionado) Icon(Icons.Default.Check, "Selecionado", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
 
-/** Card que troca pro formulário de CEP manual, pra digitar um endereço novo na hora. */
 @Composable
-private fun CartaoNovoEndereco(
-    selecionado: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Spacing.radiusMedium))
-            .background(if (selecionado) RoxoNeon.copy(alpha = 0.12f) else FundoCard)
-            .clickable { onClick() }
-            .padding(Spacing.md),
-        verticalAlignment = Alignment.CenterVertically
+private fun IndicadorDeEtapas(etapa: EtapaCheckout) {
+    val atual = etapa.ordinal
+    Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.screenHorizontal), horizontalArrangement = Arrangement.SpaceBetween) {
+        listOf("Entrega", "Pagamento", "Resumo").forEachIndexed { indice, rotulo ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(
+                    color = if (indice <= atual) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Text("${indice + 1}", modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs), style = MaterialTheme.typography.labelMedium, color = if (indice <= atual) MaterialTheme.colorScheme.onPrimary else TextoSecundario)
+                }
+                Text(rotulo, style = MaterialTheme.typography.labelSmall, color = if (indice == atual) MaterialTheme.colorScheme.primary else TextoSecundario)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CartaoMetodoPagamento(metodo: MetodoPagamento, selecionado: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = if (selecionado) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = null,
-            tint = if (selecionado) RoxoNeonClaro else TextoSecundario
-        )
-        Spacer(modifier = Modifier.width(Spacing.md))
-        Text(
-            text = "Usar um novo endereço",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (selecionado) FontWeight.Medium else FontWeight.Normal,
-            color = if (selecionado) TextoPrincipal else TextoSecundario,
-            modifier = Modifier.weight(1f)
-        )
-        if (selecionado) {
-            Icon(Icons.Default.Check, contentDescription = "Selecionado", tint = RoxoNeonClaro)
-        }
-    }
-}
-
-/** Indicador simples de progresso "1 Endereço — 2 Pagamento" no topo do checkout. */
-@Composable
-private fun IndicadorDeEtapas(etapaAtual: EtapaCheckout) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.lg),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PassoEtapa(numero = 1, rotulo = "Endereço", ativo = true)
-        HorizontalDivider(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = Spacing.xs),
-            color = if (etapaAtual == EtapaCheckout.PAGAMENTO) RoxoNeon else TextoSecundario.copy(alpha = 0.3f)
-        )
-        PassoEtapa(numero = 2, rotulo = "Pagamento", ativo = etapaAtual == EtapaCheckout.PAGAMENTO)
-    }
-}
-
-@Composable
-private fun PassoEtapa(numero: Int, rotulo: String, ativo: Boolean) {
-    val cor = if (ativo) RoxoNeon else TextoSecundario
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(RoundedCornerShape(50))
-                .background(if (ativo) RoxoNeon else FundoCard),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "$numero",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (ativo) androidx.compose.ui.graphics.Color.White else TextoSecundario
-            )
-        }
-        Spacer(modifier = Modifier.width(Spacing.xs))
-        Text(text = rotulo, style = MaterialTheme.typography.labelMedium, color = cor)
-    }
-}
-
-/** Card selecionável de forma de pagamento (Cartão / Pix / Boleto). */
-@Composable
-private fun CartaoMetodoPagamento(
-    metodo: MetodoPagamento,
-    selecionado: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Spacing.radiusMedium))
-            .background(if (selecionado) RoxoNeon.copy(alpha = 0.12f) else FundoCard)
-            .clickable { onClick() }
-            .padding(Spacing.md),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = metodo.icone,
-            contentDescription = null,
-            tint = if (selecionado) RoxoNeonClaro else TextoSecundario
-        )
-        Spacer(modifier = Modifier.width(Spacing.md))
-        Text(
-            text = metodo.nome,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (selecionado) FontWeight.Medium else FontWeight.Normal,
-            color = if (selecionado) TextoPrincipal else TextoSecundario,
-            modifier = Modifier.weight(1f)
-        )
-        if (selecionado) {
-            Icon(Icons.Default.Check, contentDescription = "Selecionado", tint = RoxoNeonClaro)
+        Row(Modifier.padding(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+            Icon(metodo.icone, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(Spacing.md))
+            Text(metodo.nome, style = MaterialTheme.typography.bodyLarge, color = TextoPrincipal, modifier = Modifier.weight(1f))
+            if (selecionado) Icon(Icons.Default.Check, "Selecionado", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

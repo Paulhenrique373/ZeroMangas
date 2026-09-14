@@ -1,8 +1,7 @@
 package com.example.zeromangas.ui.theme.detalhes
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -38,6 +37,7 @@ import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.MangaCardFavoritavel
 import com.example.zeromangas.ui.components.PriceText
 import com.example.zeromangas.ui.components.PrimaryButton
+import com.example.zeromangas.ui.components.RatingStars
 import com.example.zeromangas.ui.components.SectionHeader
 import com.example.zeromangas.ui.theme.AmareloDestaque
 import com.example.zeromangas.ui.theme.FundoCard
@@ -46,6 +46,8 @@ import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.viewmodel.FavoritoViewModel
+import com.example.zeromangas.viewmodel.AvaliacaoViewModel
+import com.example.zeromangas.viewmodel.AvaliacoesState
 
 /**
  * Tela de detalhes de um mangá.
@@ -53,10 +55,8 @@ import com.example.zeromangas.viewmodel.FavoritoViewModel
  * Reaproveita os componentes do design system (PriceText, PrimaryButton, SectionHeader,
  * MangaCardFavoritavel) já usados na Home/Busca/Favoritos, em vez de recriar visual novo.
  *
- * Observação: o model [Manga] não possui campos de autor, páginas ou avaliação (nota),
- * então essas informações não são exibidas aqui para não inventar dados que não existem
- * no banco. Se esses campos forem adicionados futuramente na tabela "produtos" do
- * Supabase, é só estendê-los aqui e usar o componente RatingStars já existente.
+ * A tela consome somente informações existentes em [Manga] e as avaliações já
+ * persistidas, mantendo conteúdo e regras de negócio fora da camada visual.
  */
 @Composable
 fun DetalhesScreen(
@@ -66,7 +66,8 @@ fun DetalhesScreen(
     onVoltar: () -> Unit,
     onAdicionarAoCarrinho: (Manga, Int) -> Unit,
     recomendados: List<Manga> = emptyList(),
-    onMangaClick: (Manga) -> Unit = {}
+    onMangaClick: (Manga) -> Unit = {},
+    avaliacaoViewModel: AvaliacaoViewModel
 ) {
     if (manga == null) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -88,18 +89,20 @@ fun DetalhesScreen(
 
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
     val isFavorito = manga.id in favoritosIds
+    val avaliacoesState by avaliacaoViewModel.avaliacoesState.collectAsState()
 
     // ETAPA 11 (polimento): mesmo "pulo" do coração usado no MangaCardFavoritavel,
     // aqui aplicado ao botão de favorito grande sobre a capa.
     val escalaFavorito by animateFloatAsState(
-        targetValue = if (isFavorito) 1.15f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (isFavorito) 1.08f else 1f,
+        animationSpec = tween(durationMillis = 140),
         label = "escalaFavoritoDetalhes"
     )
 
     LaunchedEffect(usuarioId) {
         favoritoViewModel.carregarFavoritos(usuarioId)
     }
+    LaunchedEffect(manga.id) { avaliacaoViewModel.carregarAvaliacoes(manga.id) }
 
     val esgotado = manga.estoque <= 0
     val estoqueBaixo = manga.estoque in 1..5
@@ -123,7 +126,7 @@ fun DetalhesScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(340.dp)
+                    .height(380.dp)
                     .clip(RoundedCornerShape(bottomStart = Spacing.radiusLarge, bottomEnd = Spacing.radiusLarge))
                     .background(FundoCard)
             ) {
@@ -131,7 +134,7 @@ fun DetalhesScreen(
                     model = manga.imagemUrl,
                     contentDescription = manga.nome,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                contentScale = ContentScale.Fit
                 )
 
                 Row(
@@ -193,6 +196,17 @@ fun DetalhesScreen(
                     color = RoxoNeonClaro
                 )
 
+                if (manga.totalAvaliacoes > 0) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    RatingStars(nota = manga.notaMedia)
+                    Text(
+                        text = "${manga.totalAvaliacoes} ${if (manga.totalAvaliacoes == 1) "avaliação" else "avaliações"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextoSecundario,
+                        modifier = Modifier.padding(top = Spacing.xs)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
                 Text(
@@ -211,7 +225,8 @@ fun DetalhesScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.md))
 
-                PriceText(preco = manga.preco)
+                val precoAtual = manga.precoPromocional?.takeIf { manga.emPromocao && it < manga.preco } ?: manga.preco
+                PriceText(preco = precoAtual, precoAntigo = manga.preco.takeIf { precoAtual < it })
 
                 if (esgotado) {
                     Spacer(modifier = Modifier.height(Spacing.xs))
@@ -245,16 +260,10 @@ fun DetalhesScreen(
 
             // ---------- Informações ----------
             SectionHeader(titulo = "Informações")
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg)
-                    .clip(RoundedCornerShape(Spacing.radiusMedium))
-                    .background(FundoCard)
-                    .padding(Spacing.md)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg)) {
+                if (manga.autor.isNotBlank()) LinhaInfo(rotulo = "Autor", valor = manga.autor)
                 LinhaInfo(rotulo = "Editora", valor = manga.marca.ifBlank { "—" })
-                LinhaInfo(rotulo = "Categoria", valor = manga.categoria.ifBlank { "—" })
+                LinhaInfo(rotulo = "Gênero", valor = manga.categoria.ifBlank { "—" })
                 LinhaInfo(rotulo = "Volume", valor = manga.volume.toString())
                 LinhaInfo(
                     rotulo = "Estoque",
@@ -262,6 +271,10 @@ fun DetalhesScreen(
                     ultima = true
                 )
             }
+
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            SectionHeader(titulo = "Avaliações")
+            AvaliacoesConteudo(estado = avaliacoesState, manga = manga)
 
             // ---------- Recomendações ----------
             if (recomendados.isNotEmpty()) {
@@ -440,5 +453,55 @@ private fun LinhaInfo(rotulo: String, valor: String, ultima: Boolean = false) {
     }
     if (!ultima) {
         HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
+    }
+}
+
+@Composable
+private fun AvaliacoesConteudo(estado: AvaliacoesState?, manga: Manga) {
+    when (estado) {
+        AvaliacoesState.Carregando -> LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg),
+            color = MaterialTheme.colorScheme.primary
+        )
+        is AvaliacoesState.Sucesso -> {
+            val avaliacoes = estado.avaliacoes
+            if (avaliacoes.isEmpty()) {
+                Text(
+                    text = if (manga.totalAvaliacoes > 0) "As avaliações ainda não estão disponíveis." else "Ainda não há avaliações para este mangá.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextoSecundario,
+                    modifier = Modifier.padding(horizontal = Spacing.lg)
+                )
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    avaliacoes.forEach { avaliacao ->
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = avaliacao.nomeCliente.ifBlank { "Cliente" },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = TextoPrincipal
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.sm))
+                                RatingStars(nota = avaliacao.nota.toDouble(), mostrarValor = false)
+                            }
+                            if (avaliacao.comentario.isNotBlank()) {
+                                Text(avaliacao.comentario, style = MaterialTheme.typography.bodyMedium, color = TextoSecundario)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is AvaliacoesState.Erro -> Text(
+            text = "Não foi possível carregar as avaliações.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextoSecundario,
+            modifier = Modifier.padding(horizontal = Spacing.lg)
+        )
+        null -> Unit
     }
 }

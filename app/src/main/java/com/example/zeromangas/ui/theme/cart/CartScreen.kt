@@ -6,29 +6,27 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.CartItem
@@ -37,20 +35,13 @@ import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.PriceText
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.formatarPrecoBr
-import com.example.zeromangas.ui.theme.FundoCard
-import com.example.zeromangas.ui.theme.RoxoNeonClaro
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.viewmodel.CartViewModel
+import kotlinx.coroutines.delay
 
-/**
- * Tela do carrinho. A lógica (quantidade, frete via ViaCEP, cupom) é 100% a mesma do
- * [CartViewModel] já existente — só o visual muda, agora usando os componentes do
- * design system (PriceText, PrimaryButton, EmptyState). O checkout (endereço/pagamento)
- * agora é uma tela separada, a CheckoutScreen — "Finalizar Compra" só navega até ela.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Interface de compra; toda regra continua no [CartViewModel]. */
 @Composable
 fun CartScreen(
     cartViewModel: CartViewModel,
@@ -71,51 +62,46 @@ fun CartScreen(
     val cupomErro by cartViewModel.cupomErro.collectAsState()
     val validandoCupom by cartViewModel.validandoCupom.collectAsState()
     val desconto by cartViewModel.desconto.collectAsState()
-
+    // O valor coletado por `by` não permite smart cast; esta referência local
+    // mantém o mesmo dado para a composição do resumo abaixo.
+    val cupomAtivo = cupomAplicado
     val subtotal = itens.sumOf { it.subtotal }
     val total = subtotal + (frete ?: 0.0) - desconto
 
     LaunchedEffect(avisoEstoque) {
         if (avisoEstoque != null) {
-            delay(3000)
+            delay(3_000)
             cartViewModel.limparAvisoEstoque()
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-
-        // ETAPA 3 (navegação): Carrinho é uma aba principal (acessível pelo BottomNavBar),
-        // então não mostra mais seta de "voltar" no topo — isso é padrão de tela de aba,
-        // igual Home e Busca. `onVoltar` continua existindo (usado pelo botão físico/gesto
-        // de voltar do Android via BackHandler implícito do NavHost), só não tem mais
-        // botão visual redundante com a barra inferior.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(
+                horizontal = Spacing.screenHorizontal,
+                vertical = Spacing.lg
+            )
         ) {
+            Text("Seu carrinho", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
             Text(
-                text = "Meu Carrinho",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal
+                text = when (itens.sumOf { it.quantidade }) {
+                    0 -> "Sua seleção está vazia"
+                    1 -> "1 item reservado para você"
+                    else -> "${itens.sumOf { it.quantidade }} itens reservados para você"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        if (avisoEstoque != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg)
-                    .clip(RoundedCornerShape(Spacing.radiusSmall))
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(Spacing.md)
+        avisoEstoque?.let { mensagem ->
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.screenHorizontal)
             ) {
-                Text(
-                    text = avisoEstoque ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
+                Text(mensagem, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(Spacing.md))
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
@@ -123,88 +109,85 @@ fun CartScreen(
         if (itens.isEmpty()) {
             EmptyState(
                 titulo = "Seu carrinho está vazio",
-                subtitulo = "Adicione mangás para vê-los aqui.",
+                subtitulo = "Quando encontrar sua próxima história, ela aparecerá aqui.",
                 icone = Icons.Outlined.ShoppingCart,
-                textoAcao = "Explorar catálogo",
-                onAcaoClick = onExplorarClick
+                textoAcao = "Explorar mangás",
+                onAcaoClick = onExplorarClick,
+                modifier = Modifier.weight(1f)
             )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                items(itens, key = { it.manga.id }) { item ->
-                    CartItemCard(
-                        item = item,
-                        onAumentar = { cartViewModel.aumentarQuantidade(item.manga) },
-                        onDiminuir = { cartViewModel.diminuirQuantidade(item.manga) },
-                        onRemover = { cartViewModel.removerItem(item.manga) }
-                    )
-                }
+            return@Column
+        }
 
-                item {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    SecaoFrete(
-                        cep = cep,
-                        cepErro = cepErro,
-                        frete = frete,
-                        calculando = calculandoFrete,
-                        cidadeUf = cidadeUf,
-                        onCepChange = { cartViewModel.atualizarCep(it) },
-                        onCalcularFrete = { cartViewModel.calcularFrete() }
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    SecaoCupom(
-                        cupomInput = cupomInput,
-                        cupomAplicado = cupomAplicado,
-                        cupomErro = cupomErro,
-                        validando = validandoCupom,
-                        onCupomInputChange = { cartViewModel.atualizarCupomInput(it) },
-                        onAplicarCupom = { cartViewModel.aplicarCupom(usuarioId) },
-                        onRemoverCupom = { cartViewModel.removerCupom() }
-                    )
-                }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(
+                start = Spacing.screenHorizontal,
+                end = Spacing.screenHorizontal,
+                bottom = Spacing.md
+            ),
+            verticalArrangement = Arrangement.spacedBy(Spacing.itemGap)
+        ) {
+            items(itens, key = { it.manga.id }) { item ->
+                CartItemCard(
+                    item = item,
+                    onAumentar = { cartViewModel.aumentarQuantidade(item.manga) },
+                    onDiminuir = { cartViewModel.diminuirQuantidade(item.manga) },
+                    onRemover = { cartViewModel.removerItem(item.manga) }
+                )
             }
-
-            Column(modifier = Modifier.fillMaxWidth().padding(Spacing.lg)) {
-                LinhaResumo(rotulo = "Subtotal", valor = subtotal)
-                LinhaResumo(rotulo = "Frete", valor = frete)
-                if (cupomAplicado != null) {
-                    LinhaResumo(
-                        rotulo = "Desconto (${cupomAplicado?.codigo})",
-                        valor = null,
-                        textoAlternativo = "- ${formatarPrecoBr(desconto)}"
-                    )
-                }
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
+            item {
                 Spacer(modifier = Modifier.height(Spacing.sm))
+                SecaoFrete(
+                    cep = cep, cepErro = cepErro, frete = frete, calculando = calculandoFrete,
+                    cidadeUf = cidadeUf, onCepChange = cartViewModel::atualizarCep,
+                    onCalcularFrete = cartViewModel::calcularFrete
+                )
+            }
+            item {
+                SecaoCupom(
+                    cupomInput = cupomInput, cupomAplicado = cupomAplicado, cupomErro = cupomErro,
+                    validando = validandoCupom, onCupomInputChange = cartViewModel::atualizarCupomInput,
+                    onAplicarCupom = { cartViewModel.aplicarCupom(usuarioId) },
+                    onRemoverCupom = cartViewModel::removerCupom
+                )
+            }
+        }
 
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = Spacing.subtleElevation,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)) {
+                LinhaResumo("Subtotal", subtotal)
+                LinhaResumo("Frete", frete)
+                LinhaResumo(
+                    rotulo = if (cupomAtivo != null) "Desconto (${cupomAtivo.codigo})" else "Desconto",
+                    valor = null,
+                    textoAlternativo = if (desconto > 0) "− ${formatarPrecoBr(desconto)}" else "—",
+                    emDestaque = desconto > 0
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Total", style = MaterialTheme.typography.titleMedium, color = TextoPrincipal)
+                    Column {
+                        Text("Total", style = MaterialTheme.typography.titleMedium, color = TextoPrincipal)
+                        Text("Inclui os valores selecionados", style = MaterialTheme.typography.labelSmall, color = TextoSecundario)
+                    }
                     Text(
-                        text = formatarPrecoBr(total),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = RoxoNeonClaro
+                        formatarPrecoBr(total),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
-
                 Spacer(modifier = Modifier.height(Spacing.md))
-
-                PrimaryButton(
-                    text = "Finalizar Compra",
-                    onClick = onIrParaCheckout,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                PrimaryButton("Finalizar compra", onIrParaCheckout, Modifier.fillMaxWidth())
             }
         }
     }
@@ -213,71 +196,50 @@ fun CartScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SecaoFrete(
-    cep: String,
-    cepErro: String?,
-    frete: Double?,
-    calculando: Boolean,
-    cidadeUf: String?,
-    onCepChange: (String) -> Unit,
-    onCalcularFrete: () -> Unit
+    cep: String, cepErro: String?, frete: Double?, calculando: Boolean, cidadeUf: String?,
+    onCepChange: (String) -> Unit, onCalcularFrete: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Spacing.radiusMedium))
-            .background(FundoCard)
-            .padding(Spacing.md)
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Calcular frete", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
-        Spacer(modifier = Modifier.height(Spacing.sm))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = cep,
-                onValueChange = onCepChange,
-                placeholder = { Text("00000-000") },
-                singleLine = true,
-                isError = cepErro != null,
-                enabled = !calculando,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(Spacing.sm))
-            Button(
-                onClick = onCalcularFrete,
-                enabled = !calculando,
-                shape = RoundedCornerShape(Spacing.radiusSmall)
-            ) {
-                if (calculando) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Calcular")
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.LocalShipping, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(Spacing.iconMedium))
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Column {
+                    Text("Entrega", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                    Text("Calcule o frete pelo seu CEP", style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
                 }
             }
-        }
-
-        if (cepErro != null) {
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(cepErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        } else if (frete != null) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            if (cidadeUf != null) {
-                Text(
-                    text = "Entrega para: $cidadeUf",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextoSecundario
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = cep, onValueChange = onCepChange, placeholder = { Text("00000-000") },
+                    singleLine = true, isError = cepErro != null, enabled = !calculando,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Button(
+                    onClick = onCalcularFrete, enabled = !calculando,
+                    modifier = Modifier.height(Spacing.textFieldMinHeight), shape = MaterialTheme.shapes.small,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    if (calculando) CircularProgressIndicator(
+                        modifier = Modifier.size(Spacing.iconSmall), strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) else Text("Calcular")
+                }
             }
-            Text(
-                text = "Frete: ${formatarPrecoBr(frete)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = RoxoNeonClaro
-            )
+            when {
+                cepErro != null -> Text(cepErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = Spacing.xs))
+                frete != null -> Text(
+                    listOfNotNull(cidadeUf?.let { "Entrega para $it" }, "Frete ${formatarPrecoBr(frete)}").joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = Spacing.sm)
+                )
+            }
         }
     }
 }
@@ -285,193 +247,111 @@ fun SecaoFrete(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SecaoCupom(
-    cupomInput: String,
-    cupomAplicado: Cupom?,
-    cupomErro: String?,
-    validando: Boolean,
-    onCupomInputChange: (String) -> Unit,
-    onAplicarCupom: () -> Unit,
-    onRemoverCupom: () -> Unit
+    cupomInput: String, cupomAplicado: Cupom?, cupomErro: String?, validando: Boolean,
+    onCupomInputChange: (String) -> Unit, onAplicarCupom: () -> Unit, onRemoverCupom: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Spacing.radiusMedium))
-            .background(FundoCard)
-            .padding(Spacing.md)
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Cupom de desconto", style = MaterialTheme.typography.titleSmall, color = RoxoNeonClaro)
-        Spacer(modifier = Modifier.height(Spacing.sm))
-
-        if (cupomAplicado != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "\"${cupomAplicado.codigo}\" aplicado",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = RoxoNeonClaro
-                )
-                IconButton(onClick = onRemoverCupom, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Remover cupom", tint = TextoPrincipal, modifier = Modifier.size(18.dp))
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.LocalOffer, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(Spacing.iconMedium))
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Tem um cupom?", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                    Text("Adicione seu código para ganhar desconto.", style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
+                }
+                if (cupomAplicado != null) IconButton(onClick = onRemoverCupom) {
+                    Icon(Icons.Default.Close, "Remover cupom")
                 }
             }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = cupomInput,
-                    onValueChange = onCupomInputChange,
-                    placeholder = { Text("Código do cupom") },
-                    singleLine = true,
-                    isError = cupomErro != null,
-                    enabled = !validando,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Button(
-                    onClick = onAplicarCupom,
-                    enabled = !validando,
-                    shape = RoundedCornerShape(Spacing.radiusSmall)
-                ) {
-                    if (validando) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text("Aplicar")
+            Spacer(modifier = Modifier.height(Spacing.md))
+            if (cupomAplicado != null) {
+                Text("Cupom ${cupomAplicado.codigo} aplicado", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = cupomInput, onValueChange = onCupomInputChange,
+                        placeholder = { Text("Código do cupom") }, singleLine = true,
+                        isError = cupomErro != null, enabled = !validando, modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Button(onClick = onAplicarCupom, enabled = !validando, modifier = Modifier.height(Spacing.textFieldMinHeight), shape = MaterialTheme.shapes.small) {
+                        if (validando) CircularProgressIndicator(modifier = Modifier.size(Spacing.iconSmall), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary) else Text("Aplicar")
                     }
                 }
-            }
-
-            if (cupomErro != null) {
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(cupomErro, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                cupomErro?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = Spacing.xs)) }
             }
         }
     }
 }
 
 @Composable
-fun CartItemCard(
-    item: CartItem,
-    onAumentar: () -> Unit,
-    onDiminuir: () -> Unit,
-    onRemover: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Spacing.radiusMedium))
-            .background(FundoCard)
-            .padding(Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(RoundedCornerShape(Spacing.radiusSmall))
-                .background(MaterialTheme.colorScheme.background)
-        ) {
+fun CartItemCard(item: CartItem, onAumentar: () -> Unit, onDiminuir: () -> Unit, onRemover: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
-                model = item.manga.imagemUrl,
-                contentDescription = item.manga.nome,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                model = item.manga.imagemUrl, contentDescription = item.manga.nome, contentScale = ContentScale.Crop,
+                modifier = Modifier.size(width = 76.dp, height = 104.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceVariant)
             )
-        }
-
-        Spacer(modifier = Modifier.width(Spacing.md))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.manga.nome,
-                style = MaterialTheme.typography.titleSmall,
-                color = TextoPrincipal,
-                maxLines = 1
-            )
-            Text(
-                text = "Vol. ${item.manga.volume} · ${formatarPrecoBr(item.manga.preco)} un.",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextoSecundario,
-                maxLines = 1
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.sm))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                QuantidadeBotao(
-                    icone = Icons.Default.Remove,
-                    contentDescription = "Diminuir",
-                    habilitado = true,
-                    onClick = onDiminuir
+            Spacer(modifier = Modifier.width(Spacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(item.manga.nome, style = MaterialTheme.typography.titleSmall, color = TextoPrincipal, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text("Volume ${item.manga.volume}", style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
+                    }
+                    IconButton(onClick = onRemover, modifier = Modifier.size(Spacing.touchTarget)) {
+                        Icon(Icons.Default.DeleteOutline, "Remover ${item.manga.nome}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(Spacing.iconMedium))
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                PriceText(
+                    preco = item.manga.precoPromocional ?: item.manga.preco,
+                    precoAntigo = item.manga.preco.takeIf { item.manga.emPromocao && item.manga.precoPromocional != null && item.manga.precoPromocional < it }
                 )
-                Text(
-                    text = "${item.quantidade}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextoPrincipal,
-                    modifier = Modifier.padding(horizontal = Spacing.sm)
-                )
-                QuantidadeBotao(
-                    icone = Icons.Default.Add,
-                    contentDescription = "Aumentar",
-                    habilitado = item.quantidade < item.manga.estoque,
-                    onClick = onAumentar
-                )
-            }
-        }
-
-        Column(horizontalAlignment = Alignment.End) {
-            PriceText(preco = item.subtotal)
-            IconButton(onClick = onRemover, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "Remover", tint = TextoSecundario, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    QuantidadeSelector(item.quantidade, item.quantidade < item.manga.estoque, onDiminuir, onAumentar)
+                    Text(formatarPrecoBr(item.subtotal), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
 }
 
-/** Botão circular pequeno de +/- usado no stepper de quantidade do item do carrinho. */
 @Composable
-private fun QuantidadeBotao(
-    icone: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    habilitado: Boolean = true,
-    onClick: () -> Unit
-) {
+private fun QuantidadeSelector(quantidade: Int, podeAumentar: Boolean, onDiminuir: () -> Unit, onAumentar: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = Spacing.xs, vertical = Spacing.xs)
+    ) {
+        QuantidadeBotao(Icons.Default.Remove, "Diminuir quantidade", true, onDiminuir)
+        Text(quantidade.toString(), style = MaterialTheme.typography.labelLarge, color = TextoPrincipal, modifier = Modifier.padding(horizontal = Spacing.sm))
+        QuantidadeBotao(Icons.Default.Add, "Aumentar quantidade", podeAumentar, onAumentar)
+    }
+}
+
+@Composable
+private fun QuantidadeBotao(icone: androidx.compose.ui.graphics.vector.ImageVector, descricao: String, habilitado: Boolean, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
-            .size(26.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.background)
-            .clickable(enabled = habilitado) { onClick() },
+        modifier = Modifier.size(28.dp).clip(CircleShape).clickable(enabled = habilitado, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icone,
-            contentDescription = contentDescription,
-            tint = if (habilitado) TextoPrincipal else TextoSecundario.copy(alpha = 0.4f),
-            modifier = Modifier.size(14.dp)
-        )
+        Icon(icone, descricao, tint = if (habilitado) MaterialTheme.colorScheme.primary else TextoSecundario.copy(alpha = .4f), modifier = Modifier.size(Spacing.iconSmall))
     }
 }
 
 @Composable
-fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+fun LinhaResumo(rotulo: String, valor: Double?, textoAlternativo: String? = null, emDestaque: Boolean = false) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(rotulo, style = MaterialTheme.typography.bodyMedium, color = TextoSecundario)
         Text(
-            text = textoAlternativo ?: (if (valor != null) formatarPrecoBr(valor) else "—"),
+            textoAlternativo ?: (valor?.let(::formatarPrecoBr) ?: "—"),
             style = MaterialTheme.typography.bodyMedium,
-            color = TextoSecundario
+            color = if (emDestaque) MaterialTheme.colorScheme.primary else TextoSecundario
         )
     }
 }

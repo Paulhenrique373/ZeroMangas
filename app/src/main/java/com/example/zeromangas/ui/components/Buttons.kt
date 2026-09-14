@@ -1,13 +1,11 @@
 package com.example.zeromangas.ui.components
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -19,9 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.zeromangas.ui.theme.RoxoNeon
 import com.example.zeromangas.ui.theme.Spacing
 
 /**
@@ -43,30 +39,31 @@ fun PrimaryButton(
     val interactionSource = remember { MutableInteractionSource() }
     val pressionado by interactionSource.collectIsPressedAsState()
     val escala by animateFloatAsState(
-        targetValue = if (pressionado) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressionado) 0.98f else 1f,
+        animationSpec = tween(durationMillis = 110),
         label = "escalaPrimaryButton"
     )
 
     Button(
         onClick = onClick,
         modifier = modifier
-            .height(52.dp)
+            .height(Spacing.buttonHeight)
             .scale(escala),
         enabled = enabled && !loading,
-        shape = RoundedCornerShape(Spacing.radiusSmall),
+        shape = MaterialTheme.shapes.small,
         colors = ButtonDefaults.buttonColors(
-            containerColor = RoxoNeon,
-            contentColor = Color.White,
-            disabledContainerColor = RoxoNeon.copy(alpha = 0.4f)
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         ),
         contentPadding = PaddingValues(horizontal = Spacing.lg),
         interactionSource = interactionSource
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.height(20.dp),
-                color = Color.White,
+                modifier = Modifier.height(Spacing.iconMedium),
+                color = MaterialTheme.colorScheme.onPrimary,
                 strokeWidth = 2.dp
             )
         } else {
@@ -92,18 +89,26 @@ fun SecondaryButton(
     val interactionSource = remember { MutableInteractionSource() }
     val pressionado by interactionSource.collectIsPressedAsState()
     val escala by animateFloatAsState(
-        targetValue = if (pressionado) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressionado) 0.98f else 1f,
+        animationSpec = tween(durationMillis = 110),
         label = "escalaSecondaryButton"
     )
 
     OutlinedButton(
         onClick = onClick,
         modifier = modifier
-            .height(52.dp)
+            .height(Spacing.buttonHeight)
             .scale(escala),
         enabled = enabled,
-        shape = RoundedCornerShape(Spacing.radiusSmall),
+        shape = MaterialTheme.shapes.small,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.primary,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            Spacing.borderWidth,
+            MaterialTheme.colorScheme.outline
+        ),
         interactionSource = interactionSource
     ) {
         Text(text = text, style = MaterialTheme.typography.titleMedium)

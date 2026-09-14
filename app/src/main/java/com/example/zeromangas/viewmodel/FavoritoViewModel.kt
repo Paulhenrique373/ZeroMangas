@@ -13,6 +13,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+sealed class FavoritosState {
+    object Idle : FavoritosState()
+    object Carregando : FavoritosState()
+    object Sucesso : FavoritosState()
+    data class Erro(val mensagem: String) : FavoritosState()
+}
+
 class FavoritoViewModel : ViewModel() {
 
     private val repository = FavoritoRepository()
@@ -20,6 +27,9 @@ class FavoritoViewModel : ViewModel() {
 
     private val _favoritosIds = MutableStateFlow<Set<String>>(emptySet())
     val favoritosIds: StateFlow<Set<String>> = _favoritosIds.asStateFlow()
+
+    private val _favoritosState = MutableStateFlow<FavoritosState>(FavoritosState.Idle)
+    val favoritosState: StateFlow<FavoritosState> = _favoritosState.asStateFlow()
 
     /**
      * Lista de mangás favoritados (já convertida de ids para objetos Manga completos),
@@ -41,9 +51,19 @@ class FavoritoViewModel : ViewModel() {
         usuarioIdCarregado = usuarioId
 
         viewModelScope.launch {
-            repository.listarFavoritos(usuarioId).onSuccess { ids ->
-                _favoritosIds.value = ids.toSet()
-            }
+            _favoritosState.value = FavoritosState.Carregando
+            repository.listarFavoritos(usuarioId).fold(
+                onSuccess = { ids ->
+                    _favoritosIds.value = ids.toSet()
+                    _favoritosState.value = FavoritosState.Sucesso
+                },
+                onFailure = { erro ->
+                    usuarioIdCarregado = null
+                    _favoritosState.value = FavoritosState.Erro(
+                        erro.message ?: "Não foi possível carregar seus favoritos."
+                    )
+                }
+            )
         }
     }
 
@@ -84,5 +104,6 @@ class FavoritoViewModel : ViewModel() {
     fun limparFavoritos() {
         _favoritosIds.value = emptySet()
         usuarioIdCarregado = null
+        _favoritosState.value = FavoritosState.Idle
     }
 }

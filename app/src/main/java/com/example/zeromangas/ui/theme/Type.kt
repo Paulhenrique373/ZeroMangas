@@ -15,6 +15,20 @@ val Typography = Typography(
         lineHeight = 34.sp,
         letterSpacing = 0.sp
     ),
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+        letterSpacing = 0.sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
     // Títulos de card/produto
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -29,6 +43,13 @@ val Typography = Typography(
         fontSize = 16.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.15.sp
+    ),
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
     ),
     // Texto padrão de corpo
     bodyLarge = TextStyle(
@@ -45,6 +66,13 @@ val Typography = Typography(
         lineHeight = 20.sp,
         letterSpacing = 0.25.sp
     ),
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.2.sp
+    ),
     // Preços - precisa se destacar
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -52,6 +80,13 @@ val Typography = Typography(
         fontSize = 18.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.3.sp
     ),
     // Texto pequeno - tags de categoria, marca
     labelSmall = TextStyle(

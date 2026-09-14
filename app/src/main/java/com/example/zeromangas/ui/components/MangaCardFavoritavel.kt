@@ -1,8 +1,7 @@
 package com.example.zeromangas.ui.components
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -47,16 +46,23 @@ fun MangaCardFavoritavel(
     isFavorito: Boolean,
     onClick: () -> Unit,
     onFavoritoClick: () -> Unit,
-    onAdicionarAoCarrinho: (() -> Unit)? = null
+    onAdicionarAoCarrinho: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    state: MangaCardState = if (manga.estoque <= 0) MangaCardState.INDISPONIVEL else MangaCardState.NORMAL,
+    preencherLargura: Boolean = false
 ) {
+    if (state == MangaCardState.LOADING) {
+        MangaCardSkeleton(modifier = modifier, preencherLargura = preencherLargura)
+        return
+    }
     val escalaCoracao by animateFloatAsState(
-        targetValue = if (isFavorito) 1.15f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (isFavorito) 1.08f else 1f,
+        animationSpec = tween(durationMillis = 140),
         label = "escalaFavorito"
     )
 
-    Box {
-        MangaCard(manga = manga, onClick = onClick)
+    Box(modifier = modifier) {
+        MangaCard(manga = manga, onClick = onClick, state = state, preencherLargura = preencherLargura)
 
         Box(
             modifier = Modifier
@@ -78,7 +84,7 @@ fun MangaCardFavoritavel(
         }
 
         if (onAdicionarAoCarrinho != null) {
-            val esgotado = manga.estoque <= 0
+            val esgotado = state == MangaCardState.INDISPONIVEL
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

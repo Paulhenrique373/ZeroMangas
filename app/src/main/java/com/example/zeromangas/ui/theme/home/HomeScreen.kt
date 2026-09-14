@@ -3,6 +3,7 @@ package com.example.zeromangas.ui.theme.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -10,11 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
@@ -40,7 +37,7 @@ import com.example.zeromangas.ui.components.SecondaryButton
 import com.example.zeromangas.ui.components.SectionHeader
 import com.example.zeromangas.ui.theme.BordaSutil
 import com.example.zeromangas.ui.theme.Spacing
-import com.example.zeromangas.viewmodel.CartViewModel
+import com.example.zeromangas.ui.components.formatarPrecoBr
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
 import com.example.zeromangas.viewmodel.NotificacaoViewModel
@@ -50,18 +47,14 @@ import com.example.zeromangas.viewmodel.TipoOrdenacao
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
-    cartViewModel: CartViewModel,
     favoritoViewModel: FavoritoViewModel,
     notificacaoViewModel: NotificacaoViewModel,
     usuarioId: String,
     onMangaClick: (Manga) -> Unit = {},
-    onCarrinhoClick: () -> Unit = {},
-    onPedidosClick: () -> Unit = {},
-    onPerfilClick: () -> Unit = {},
-    onFavoritosClick: () -> Unit = {},
     onBuscaClick: () -> Unit = {},
     onNotificacoesClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {}
+    quantidadeNoCarrinho: Int = 0,
+    onCarrinhoClick: () -> Unit = {}
 ) {
     val mangasEmDestaque by homeViewModel.mangasEmDestaque.collectAsState()
     val mangasLancamentos by homeViewModel.mangasLancamentos.collectAsState()
@@ -70,174 +63,23 @@ fun HomeScreen(
     val carregando by homeViewModel.carregando.collectAsState()
     val erro by homeViewModel.erro.collectAsState()
     val categoriaSelecionada by homeViewModel.categoriaSelecionada.collectAsState()
-    val itensCarrinho by cartViewModel.itens.collectAsState()
-    val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
     val quantidadeNotificacoesNaoLidas by notificacaoViewModel.quantidadeNaoLidas.collectAsState()
-
-    var mostrarConfirmacaoLogout by remember { mutableStateOf(false) }
 
     LaunchedEffect(usuarioId) {
         favoritoViewModel.carregarFavoritos(usuarioId)
         notificacaoViewModel.iniciar(usuarioId)
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-
-        // ---- Topo: saudação + ícones de navegação ----
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = Spacing.md, end = Spacing.sm, top = Spacing.md),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Olá! 👋",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "O que você quer ler hoje?",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BadgedBox(
-                    badge = {
-                        if (quantidadeNotificacoesNaoLidas > 0) {
-                            Badge { Text("$quantidadeNotificacoesNaoLidas") }
-                        }
-                    }
-                ) {
-                    IconButton(onClick = onNotificacoesClick) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notificações",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                IconButton(onClick = onFavoritosClick) {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Meus Favoritos",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                BadgedBox(
-                    badge = {
-                        if (quantidadeNoCarrinho > 0) {
-                            Badge { Text("$quantidadeNoCarrinho") }
-                        }
-                    }
-                ) {
-                    IconButton(onClick = onCarrinhoClick) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = "Carrinho",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                IconButton(onClick = onPedidosClick) {
-                    Icon(
-                        imageVector = Icons.Default.Receipt,
-                        contentDescription = "Meus Pedidos",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                IconButton(onClick = onPerfilClick) {
-                    Icon(
-                        imageVector = Icons.Default.AccountCircle,
-                        contentDescription = "Meu Perfil",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                IconButton(onClick = { mostrarConfirmacaoLogout = true }) {
-                    Icon(
-                        imageVector = Icons.Default.Logout,
-                        contentDescription = "Sair da conta",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        // ---- Busca ----
-        // ETAPA 2 (Home): antes esse campo filtrava a própria Home (duplicando a
-        // tela de Busca). Agora ele é só um atalho visual: ao tocar, ele NÃO edita
-        // texto aqui — leva direto para a tela de Busca (que já tem toda a lógica
-        // de filtros/ordenação), igual ao padrão de apps de loja (Amazon, Play Store etc).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.md)
-                .height(52.dp)
-                .clip(RoundedCornerShape(Spacing.radiusSmall))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, BordaSutil, RoundedCornerShape(Spacing.radiusSmall))
-                .clickable { onBuscaClick() }
-                .padding(horizontal = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(Spacing.sm))
-            Text(
-                text = "Buscar por nome, marca ou volume...",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        // ---- Categorias ----
-        // Tocar numa categoria já seleciona ela no HomeViewModel (compartilhado com
-        // a tela de Busca) e leva para lá, já mostrando o resultado filtrado.
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = Spacing.md),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-        ) {
-            items(categorias, key = { it }) { categoria ->
-                CategoryChip(
-                    texto = categoria,
-                    selecionado = categoriaSelecionada == categoria,
-                    onClick = {
-                        homeViewModel.selecionarCategoria(categoria)
-                        onBuscaClick()
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        // ---- Conteúdo principal ----
-        when {
+    when {
             carregando && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
-                LoadingState(modifier = Modifier.weight(1f))
+                LoadingState()
             }
 
             erro != null && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .padding(Spacing.xl),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -259,16 +101,44 @@ fun HomeScreen(
                 EmptyState(
                     titulo = "Catálogo vazio",
                     subtitulo = "Ainda não há mangás cadastrados no momento.",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxSize()
                 )
             }
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(bottom = Spacing.xl),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = Spacing.lg, bottom = Spacing.xxl),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sectionGap)
                 ) {
+                    item {
+                        HomeHeader(
+                            quantidadeNotificacoes = quantidadeNotificacoesNaoLidas,
+                            quantidadeNoCarrinho = quantidadeNoCarrinho,
+                            onNotificacoesClick = onNotificacoesClick,
+                            onCarrinhoClick = onCarrinhoClick
+                        )
+                    }
+                    item { HomeSearchField(onClick = onBuscaClick) }
+                    if (categorias.isNotEmpty()) {
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                items(categorias, key = { it }) { categoria ->
+                                    CategoryChip(
+                                        texto = categoria,
+                                        selecionado = categoriaSelecionada == categoria,
+                                        onClick = {
+                                            homeViewModel.selecionarCategoria(categoria)
+                                            onBuscaClick()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Banner de destaque: usa o primeiro mangá marcado como destaque
                     val destaque = mangasEmDestaque.firstOrNull()
                     if (destaque != null) {
@@ -288,8 +158,8 @@ fun HomeScreen(
                         }
                         item {
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.md),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
                             ) {
                                 items(mangasEmDestaque, key = { "destaque_${it.id}" }) { manga ->
                                     MangaCardFavoritavel(
@@ -310,8 +180,8 @@ fun HomeScreen(
                         }
                         item {
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.md),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
                             ) {
                                 items(mangasLancamentos, key = { "lancamento_${it.id}" }) { manga ->
                                     MangaCardFavoritavel(
@@ -328,12 +198,12 @@ fun HomeScreen(
                     // Recomendações: mesma categoria do mangá em destaque (ver HomeViewModel)
                     if (mangasRecomendados.isNotEmpty()) {
                         item {
-                            SectionHeader(titulo = "✨ Você também pode gostar")
+                            SectionHeader(titulo = "✨ Recomendados para você", onVerTodosClick = onBuscaClick)
                         }
                         item {
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.md),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
                             ) {
                                 items(mangasRecomendados, key = { "recomendado_${it.id}" }) { manga ->
                                     MangaCardFavoritavel(
@@ -349,26 +219,70 @@ fun HomeScreen(
                 }
             }
         }
-    }
+}
 
-    if (mostrarConfirmacaoLogout) {
-        AlertDialog(
-            onDismissRequest = { mostrarConfirmacaoLogout = false },
-            title = { Text("Sair da conta") },
-            text = { Text("Tem certeza que deseja sair?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    mostrarConfirmacaoLogout = false
-                    onLogoutClick()
-                }) {
-                    Text("Sair")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarConfirmacaoLogout = false }) {
-                    Text("Cancelar")
+@Composable
+private fun HomeHeader(
+    quantidadeNotificacoes: Int,
+    quantidadeNoCarrinho: Int,
+    onNotificacoesClick: () -> Unit,
+    onCarrinhoClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screenHorizontal),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Olá! 👋",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = "Encontre sua próxima história",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BadgedBox(badge = { if (quantidadeNotificacoes > 0) Badge { Text(quantidadeNotificacoes.toString()) } }) {
+                IconButton(onClick = onNotificacoesClick) {
+                    Icon(Icons.Default.Notifications, "Notificações", tint = MaterialTheme.colorScheme.primary)
                 }
             }
+            BadgedBox(badge = { if (quantidadeNoCarrinho > 0) Badge { Text(quantidadeNoCarrinho.toString()) } }) {
+                IconButton(onClick = onCarrinhoClick) {
+                    Icon(Icons.Default.ShoppingCart, "Carrinho", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSearchField(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screenHorizontal)
+            .height(Spacing.textFieldMinHeight)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(Spacing.borderWidth, BordaSutil, MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        Text(
+            text = "Buscar mangás, autores ou gêneros...",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -383,8 +297,8 @@ private fun BannerDestaque(manga: Manga, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.md)
-            .height(160.dp)
+            .padding(horizontal = Spacing.screenHorizontal)
+            .height(184.dp)
             .clip(RoundedCornerShape(Spacing.radiusLarge))
             .background(MaterialTheme.colorScheme.surface)
             .clickable { onClick() }
@@ -412,12 +326,12 @@ private fun BannerDestaque(manga: Manga, onClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(Spacing.md)
+                .padding(Spacing.lg)
         ) {
             Text(
                 text = "Em destaque",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primaryContainer
             )
             Text(
                 text = manga.nome,
@@ -426,11 +340,19 @@ private fun BannerDestaque(manga: Manga, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = "R$ ${"%.2f".format(manga.preco)}",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = formatarPrecoBr(manga.preco),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(Spacing.md))
+                Text(
+                    text = "Ver detalhes",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                )
+            }
         }
     }
 }

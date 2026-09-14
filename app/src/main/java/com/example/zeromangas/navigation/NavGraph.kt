@@ -50,6 +50,7 @@ import com.example.zeromangas.ui.theme.editarperfil.EditarPerfilScreen
 import com.example.zeromangas.ui.theme.enderecos.EnderecosScreen
 import com.example.zeromangas.ui.theme.notificacoes.NotificacoesScreen
 import com.example.zeromangas.viewmodel.AuthViewModel
+import com.example.zeromangas.viewmodel.AvaliacaoViewModel
 import com.example.zeromangas.viewmodel.CartViewModel
 import com.example.zeromangas.viewmodel.EnderecoViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
@@ -136,8 +137,11 @@ fun NavGraph() {
                     onAbaSelecionada = { aba ->
                         if (aba.rota != rotaAtual) {
                             navController.navigate(aba.rota) {
-                                popUpTo(Tela.Home.rota)
+                                popUpTo(Tela.Home.rota) {
+                                    saveState = true
+                                }
                                 launchSingleTop = true
+                                restoreState = true
                             }
                         }
                     }
@@ -190,7 +194,6 @@ fun NavGraph() {
             composable(Tela.Home.rota) {
                 HomeScreen(
                     homeViewModel = homeViewModel,
-                    cartViewModel = cartViewModel,
                     favoritoViewModel = favoritoViewModel,
                     notificacaoViewModel = notificacaoViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
@@ -200,46 +203,23 @@ fun NavGraph() {
                     onNotificacoesClick = {
                         navController.navigate(Tela.Notificacoes.rota)
                     },
+                    quantidadeNoCarrinho = quantidadeNoCarrinho,
                     onCarrinhoClick = {
-                        // ETAPA 3 (navegação): mesmo padrão de troca de aba usado pelo
-                        // BottomNavBar (popUpTo + launchSingleTop), já que o Carrinho
-                        // também é uma aba principal — evita empilhar a mesma tela
-                        // duas vezes quando o usuário entra por aqui e depois troca de aba.
                         navController.navigate(Tela.Carrinho.rota) {
-                            popUpTo(Tela.Home.rota)
+                            popUpTo(Tela.Home.rota) {
+                                saveState = true
+                            }
                             launchSingleTop = true
-                        }
-                    },
-                    onPedidosClick = {
-                        // Pedidos não é uma aba do BottomNavBar, então continua uma
-                        // navegação normal (empilhada), com seta de voltar na própria tela.
-                        navController.navigate(Tela.Pedidos.rota)
-                    },
-                    onPerfilClick = {
-                        navController.navigate(Tela.Perfil.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
-                        }
-                    },
-                    onFavoritosClick = {
-                        navController.navigate(Tela.Favoritos.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
+                            restoreState = true
                         }
                     },
                     onBuscaClick = {
                         navController.navigate(Tela.Busca.rota) {
-                            popUpTo(Tela.Home.rota)
+                            popUpTo(Tela.Home.rota) {
+                                saveState = true
+                            }
                             launchSingleTop = true
-                        }
-                    },
-                    onLogoutClick = {
-                        authViewModel.logout()
-                        cartViewModel.limparCarrinho()
-                        favoritoViewModel.limparFavoritos()
-                        notificacaoViewModel.limpar()
-                        navController.navigate(Tela.Login.rota) {
-                            popUpTo(Tela.Home.rota) { inclusive = true }
+                            restoreState = true
                         }
                     }
                 )
@@ -284,6 +264,7 @@ fun NavGraph() {
                         )
                     }
                     else -> {
+                        val avaliacaoViewModel: AvaliacaoViewModel = viewModel()
                         DetalhesScreen(
                             manga = manga,
                             recomendados = recomendados,
@@ -296,7 +277,8 @@ fun NavGraph() {
                             },
                             onMangaClick = { mangaSelecionado ->
                                 navController.navigate(Tela.Detalhes.criarRota(mangaSelecionado.id))
-                            }
+                            },
+                            avaliacaoViewModel = avaliacaoViewModel
                         )
                     }
                 }
@@ -358,7 +340,13 @@ fun NavGraph() {
             composable(Tela.Pedidos.rota) {
                 PedidosScreen(
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onVoltar = { navController.popBackStack() }
+                    onVoltar = { navController.popBackStack() },
+                    onExplorarClick = {
+                        navController.navigate(Tela.Home.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
 
@@ -378,6 +366,15 @@ fun NavGraph() {
                     },
                     onEnderecosClick = {
                         navController.navigate(Tela.Enderecos.rota)
+                    },
+                    onNotificacoesClick = {
+                        navController.navigate(Tela.Notificacoes.rota)
+                    },
+                    onCuponsClick = {
+                        navController.navigate(Tela.Carrinho.rota) {
+                            popUpTo(Tela.Home.rota)
+                            launchSingleTop = true
+                        }
                     },
                     onLogoutClick = {
                         authViewModel.logout()

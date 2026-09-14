@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -16,38 +15,39 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.*import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.RoxoNeon
-import com.example.zeromangas.ui.theme.RoxoNeonClaro
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
-import com.example.zeromangas.ui.theme.VerdeSucesso
 import com.example.zeromangas.ui.theme.VermelhoErro
 import com.example.zeromangas.viewmodel.AuthViewModel
-import com.example.zeromangas.viewmodel.ProfileState
 import com.example.zeromangas.viewmodel.UploadFotoState
 
-/**
- * Tela de perfil. Toda a lógica (carregar usuário, editar nome, trocar foto via
- * Supabase Storage) continua 100% no [AuthViewModel] já existente — só o visual muda,
- * agora com o design system, e o menu tem atalhos reais para Pedidos, Favoritos,
- * Editar perfil completo, Meus Endereços e Sair.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Central da conta. Upload, edição e sessão seguem sendo tratados pelo AuthViewModel. */
 @Composable
 fun ProfileScreen(
     authViewModel: AuthViewModel,
@@ -56,316 +56,175 @@ fun ProfileScreen(
     onFavoritosClick: () -> Unit = {},
     onEditarPerfilClick: () -> Unit = {},
     onEnderecosClick: () -> Unit = {},
+    onNotificacoesClick: () -> Unit = {},
+    onCuponsClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val usuario by authViewModel.usuarioAtual.collectAsState()
-    val profileState by authViewModel.profileState.collectAsState()
     val uploadFotoState by authViewModel.uploadFotoState.collectAsState()
+    var fotoLocal by remember { mutableStateOf<Uri?>(null) }
+    var confirmarSaida by remember { mutableStateOf(false) }
 
-    var nome by remember { mutableStateOf("") }
-    var fotoUrl by remember { mutableStateOf("") }
-    var fotoLocalPreview by remember { mutableStateOf<Uri?>(null) }
-    var jaCarregouCampos by remember { mutableStateOf(false) }
-    var mostrarConfirmacaoSair by remember { mutableStateOf(false) }
-
-    val seletorImagem = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            fotoLocalPreview = uri
-            authViewModel.uploadFotoPerfil(context, uri)
+    val seletorImagem = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            fotoLocal = it
+            authViewModel.uploadFotoPerfil(context, it)
         }
     }
 
-    LaunchedEffect(Unit) {
-        authViewModel.carregarUsuario()
-    }
-
-    LaunchedEffect(usuario) {
-        if (!jaCarregouCampos && usuario != null) {
-            nome = usuario?.nome.orEmpty()
-            fotoUrl = usuario?.fotoUrl.orEmpty()
-            jaCarregouCampos = true
-        }
-    }
-
+    LaunchedEffect(Unit) { authViewModel.carregarUsuario() }
     LaunchedEffect(uploadFotoState) {
         val estado = uploadFotoState
-        if (estado is UploadFotoState.Sucesso) {
-            fotoUrl = estado.url
+        if (estado is UploadFotoState.Sucesso && !usuario?.nome.isNullOrBlank()) {
+            // Persiste a nova URL usando a mesma atualização de perfil já existente.
+            authViewModel.atualizarPerfil(usuario?.nome.orEmpty(), estado.url)
         }
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
     ) {
+        Text(
+            text = "Perfil",
+            style = MaterialTheme.typography.headlineMedium,
+            color = TextoPrincipal,
+            modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.lg)
+        )
 
-        // ETAPA 3 (navegação): Perfil é aba principal do BottomNavBar, então sem
-        // seta de voltar redundante no topo (mesmo padrão do Carrinho e Favoritos).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            color = FundoCard,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.screenHorizontal)
         ) {
-            Text(
-                text = "Meu Perfil",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextoPrincipal
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(FundoCard)
-                    .clickable { seletorImagem.launch("image/*") },
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val modeloImagem = fotoLocalPreview ?: fotoUrl.ifBlank { null }
-
-                if (modeloImagem != null) {
-                    AsyncImage(
-                        model = modeloImagem,
-                        contentDescription = "Foto de perfil",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.AccountCircle,
-                        contentDescription = "Foto de perfil",
-                        modifier = Modifier.size(100.dp),
-                        tint = TextoSecundario
-                    )
-                }
-
-                if (uploadFotoState is UploadFotoState.Loading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(32.dp),
-                            color = TextoPrincipal
-                        )
+                Box(
+                    modifier = Modifier.size(76.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { seletorImagem.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    val imagem = fotoLocal ?: usuario?.fotoUrl?.takeIf { it.isNotBlank() }
+                    if (imagem != null) {
+                        AsyncImage(imagem, "Foto de perfil", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Icon(Icons.Default.AccountCircle, "Foto de perfil", tint = TextoSecundario, modifier = Modifier.size(60.dp))
                     }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(RoxoNeon),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "Trocar foto",
-                            modifier = Modifier.size(18.dp),
-                            tint = androidx.compose.ui.graphics.Color.White
-                        )
+                    if (uploadFotoState is UploadFotoState.Loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                    } else {
+                        Surface(
+                            color = RoxoNeon,
+                            shape = CircleShape,
+                            modifier = Modifier.align(Alignment.BottomEnd).size(28.dp)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, "Trocar foto", tint = Color.White, modifier = Modifier.padding(6.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.width(Spacing.md))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(usuario?.nome?.ifBlank { "Sua conta" } ?: "Sua conta", style = MaterialTheme.typography.titleMedium, color = TextoPrincipal)
+                    Text(usuario?.email.orEmpty(), style = MaterialTheme.typography.bodySmall, color = TextoSecundario, maxLines = 1)
+                    TextButton(onClick = onEditarPerfilClick, contentPadding = PaddingValues(0.dp)) {
+                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(Spacing.iconSmall))
+                        Spacer(Modifier.width(Spacing.xs))
+                        Text("Editar perfil")
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(Spacing.sm))
-
-            Text(
-                text = "Toque na foto para escolher uma da galeria",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextoSecundario
-            )
-
-            if (uploadFotoState is UploadFotoState.Erro) {
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = (uploadFotoState as UploadFotoState.Erro).mensagem,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = VermelhoErro
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.lg))
-
-            OutlinedTextField(
-                value = nome,
-                onValueChange = { nome = it },
-                label = { Text("Nome") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.sm))
-
-            OutlinedTextField(
-                value = usuario?.email.orEmpty(),
-                onValueChange = {},
-                label = { Text("E-mail") },
-                enabled = false,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.xs))
-
-            Text(
-                text = "O e-mail não pode ser alterado por aqui.",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextoSecundario
-            )
-
-            when (val estado = profileState) {
-                is ProfileState.Erro -> {
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    Text(
-                        text = estado.mensagem,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VermelhoErro
-                    )
-                }
-                is ProfileState.Sucesso -> {
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    Text(
-                        text = "Perfil atualizado com sucesso!",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VerdeSucesso
-                    )
-                }
-                else -> {}
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.md))
-
-            PrimaryButton(
-                text = "Salvar alterações",
-                onClick = { authViewModel.atualizarPerfil(nome, fotoUrl) },
-                enabled = profileState !is ProfileState.Loading && uploadFotoState !is UploadFotoState.Loading,
-                loading = profileState is ProfileState.Loading,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.lg))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Spacing.radiusMedium))
-                    .background(FundoCard)
-            ) {
-                ItemMenuPerfil(
-                    icone = Icons.Default.Receipt,
-                    rotulo = "Meus pedidos",
-                    onClick = onPedidosClick
-                )
-                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.12f))
-                ItemMenuPerfil(
-                    icone = Icons.Default.Favorite,
-                    rotulo = "Meus favoritos",
-                    onClick = onFavoritosClick
-                )
-                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.12f))
-                ItemMenuPerfil(
-                    icone = Icons.Default.Edit,
-                    rotulo = "Editar perfil completo",
-                    onClick = onEditarPerfilClick
-                )
-                HorizontalDivider(color = TextoSecundario.copy(alpha = 0.12f))
-                ItemMenuPerfil(
-                    icone = Icons.Default.LocationOn,
-                    rotulo = "Meus endereços",
-                    onClick = onEnderecosClick
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.md))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Spacing.radiusMedium))
-                    .background(FundoCard)
-            ) {
-                ItemMenuPerfil(
-                    icone = Icons.Default.Logout,
-                    rotulo = "Sair",
-                    corTexto = VermelhoErro,
-                    corIcone = VermelhoErro,
-                    mostrarSeta = false,
-                    onClick = { mostrarConfirmacaoSair = true }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.xl))
         }
+
+        if (uploadFotoState is UploadFotoState.Erro) {
+            Text(
+                text = (uploadFotoState as UploadFotoState.Erro).mensagem,
+                style = MaterialTheme.typography.bodySmall,
+                color = VermelhoErro,
+                modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm)
+            )
+        }
+
+        Spacer(Modifier.height(Spacing.sectionGap))
+        PerfilSecao("Compras") {
+            ItemMenuPerfil(Icons.Default.Receipt, "Meus pedidos", "Acompanhe suas compras", onPedidosClick)
+        }
+        PerfilSecao("Biblioteca") {
+            ItemMenuPerfil(Icons.Default.Favorite, "Favoritos", "Seus mangás salvos", onFavoritosClick)
+        }
+        PerfilSecao("Entrega") {
+            ItemMenuPerfil(Icons.Default.LocationOn, "Meus endereços", "Gerencie onde receber seus pedidos", onEnderecosClick)
+        }
+        PerfilSecao("Conta") {
+            ItemMenuPerfil(Icons.Default.Notifications, "Notificações", "Atualizações e novidades", onNotificacoesClick)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            ItemMenuPerfil(Icons.Default.LocalOffer, "Cupons", "Aplicar no carrinho", onCuponsClick)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            ItemMenuPerfil(Icons.Default.Settings, "Configurações", "Dados e segurança da conta", onEditarPerfilClick)
+        }
+
+        Spacer(Modifier.height(Spacing.sm))
+        Surface(
+            color = FundoCard,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.screenHorizontal)
+        ) {
+            ItemMenuPerfil(
+                icone = Icons.Default.Logout,
+                titulo = "Sair da conta",
+                descricao = null,
+                onClick = { confirmarSaida = true },
+                cor = VermelhoErro,
+                mostrarSeta = false
+            )
+        }
+        Spacer(Modifier.height(Spacing.xl))
     }
 
-    if (mostrarConfirmacaoSair) {
+    if (confirmarSaida) {
         AlertDialog(
-            onDismissRequest = { mostrarConfirmacaoSair = false },
+            onDismissRequest = { confirmarSaida = false },
             title = { Text("Sair da conta") },
-            text = { Text("Tem certeza que deseja sair? Você vai precisar entrar novamente para acessar seu perfil.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    mostrarConfirmacaoSair = false
-                    onLogoutClick()
-                }) {
-                    Text("Sim, sair", color = VermelhoErro)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarConfirmacaoSair = false }) {
-                    Text("Cancelar")
-                }
-            }
+            text = { Text("Você precisará entrar novamente para acessar sua conta.") },
+            confirmButton = { TextButton(onClick = { confirmarSaida = false; onLogoutClick() }) { Text("Sair", color = VermelhoErro) } },
+            dismissButton = { TextButton(onClick = { confirmarSaida = false }) { Text("Cancelar") } }
         )
     }
 }
 
-/** Item de linha do menu do perfil (ícone + rótulo + seta), reutilizado para cada atalho. */
+@Composable
+private fun PerfilSecao(titulo: String, conteudo: @Composable ColumnScope.() -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm)) {
+        Text(titulo.uppercase(), style = MaterialTheme.typography.labelMedium, color = TextoSecundario)
+        Spacer(Modifier.height(Spacing.sm))
+        Surface(color = FundoCard, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+            Column(content = conteudo)
+        }
+    }
+}
+
 @Composable
 private fun ItemMenuPerfil(
     icone: ImageVector,
-    rotulo: String,
+    titulo: String,
+    descricao: String?,
     onClick: () -> Unit,
-    corTexto: androidx.compose.ui.graphics.Color = TextoPrincipal,
-    corIcone: androidx.compose.ui.graphics.Color = RoxoNeonClaro,
+    cor: Color = TextoPrincipal,
     mostrarSeta: Boolean = true
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = Spacing.md, vertical = Spacing.md),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(imageVector = icone, contentDescription = null, tint = corIcone)
-        Spacer(modifier = Modifier.width(Spacing.md))
-        Text(
-            text = rotulo,
-            style = MaterialTheme.typography.bodyLarge,
-            color = corTexto,
-            modifier = Modifier.weight(1f)
-        )
-        if (mostrarSeta) {
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextoSecundario
-            )
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.size(40.dp)) {
+            Icon(icone, null, tint = if (cor == VermelhoErro) VermelhoErro else MaterialTheme.colorScheme.primary, modifier = Modifier.padding(10.dp))
         }
+        Spacer(Modifier.width(Spacing.md))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(titulo, style = MaterialTheme.typography.bodyLarge, color = cor)
+            descricao?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = TextoSecundario) }
+        }
+        if (mostrarSeta) Icon(Icons.Default.ChevronRight, null, tint = TextoSecundario)
     }
 }
