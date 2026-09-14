@@ -29,16 +29,14 @@ import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.ui.theme.VermelhoErro
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 /**
  * Tela de histórico de pedidos. Toda a lógica é a mesma de antes — status calculado
- * pelo tempo decorrido (Processando -> Enviado -> Entregue), cancelamento via
+ * pelos estados persistidos do pedido, cancelamento via
  * [OrderRepository] — só o visual passou a usar o design system (FundoCard, EmptyState,
  * LoadingState, capa do mangá, badges de status coloridos).
  */
@@ -57,16 +55,6 @@ fun PedidosScreen(
     var erro by remember { mutableStateOf<String?>(null) }
     var idsCancelando by remember { mutableStateOf<Set<String>>(emptySet()) }
     var erroCancelamento by remember { mutableStateOf<String?>(null) }
-
-    // Relógio interno: atualiza a cada 5 segundos para que o status dos pedidos
-    // (Processando -> Enviado -> Entregue) evolua visualmente sem precisar sair da tela.
-    var agora by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(5000)
-            agora = System.currentTimeMillis()
-        }
-    }
 
     LaunchedEffect(usuarioId) {
         carregando = true
@@ -168,7 +156,6 @@ fun PedidosScreen(
                     items(pedidos, key = { it.id }) { pedido ->
                         PedidoCard(
                             pedido = pedido,
-                            agora = agora,
                             cancelando = pedido.id in idsCancelando,
                             onCancelar = { cancelarPedido(pedido) }
                         )
@@ -181,32 +168,29 @@ fun PedidosScreen(
 }
 
 /**
- * Calcula o status do pedido com base em quanto tempo passou desde a compra,
- * a menos que o pedido já tenha sido cancelado manualmente pelo usuário.
- *
- * < 2 minutos: Processando | 2 a 5 minutos: Enviado | mais de 5 minutos: Entregue
+ * Traduz o estado persistido no pedido para a interface. Não existe mais avanço
+ * fictício pelo tempo: quando o backend passar a gravar PREPARANDO, ENVIADO ou
+ * ENTREGUE, a timeline refletirá esses dados diretamente.
  */
-private fun calcularStatusPedido(pedido: Order, agora: Long): String {
-    if (pedido.status == "CANCELADO") return "Cancelado"
-
-    val minutosDesdeACompra = TimeUnit.MILLISECONDS.toMinutes(agora - pedido.data)
-    return when {
-        minutosDesdeACompra < 2 -> "Processando"
-        minutosDesdeACompra in 2..4 -> "Enviado"
-        else -> "Entregue"
+private fun calcularStatusPedido(status: String): String {
+    return when (status.uppercase()) {
+        "CANCELADO" -> "Cancelado"
+        "PREPARANDO", "PROCESSANDO" -> "Preparando"
+        "ENVIADO", "EM_TRANSITO", "EM TRÂNSITO" -> "Enviado"
+        "ENTREGUE", "CONCLUIDO", "CONCLUÍDO" -> "Entregue"
+        else -> "Pedido confirmado"
     }
 }
 
 @Composable
 fun PedidoCard(
     pedido: Order,
-    agora: Long = System.currentTimeMillis(),
     cancelando: Boolean = false,
     onCancelar: () -> Unit = {}
 ) {
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
-    val statusAtual = remember(pedido.data, pedido.status, agora) { calcularStatusPedido(pedido, agora) }
-    val podeCancelar = statusAtual == "Processando"
+    val statusAtual = remember(pedido.status) { calcularStatusPedido(pedido.status) }
+    val podeCancelar = pedido.status.uppercase() in setOf("PAGAMENTO_APROVADO", "PROCESSANDO", "PREPARANDO")
     val primeiroItem = pedido.itens.firstOrNull()
     val itensRestantes = pedido.itens.size - 1
 
@@ -356,15 +340,15 @@ fun PedidoCard(
 }
 
 /**
- * Linha "Pedido realizado → Processando → Enviado → Entregue" mostrando em qual etapa
- * o pedido está agora. Usa o mesmo [calcularStatusPedido] já calculado no card — não
- * cria nenhum estado ou lógica nova, só desenha visualmente o que já existe.
+ * Linha "Pedido confirmado → Preparando → Enviado → Entregue" mostrando em qual etapa
+ * o pedido está agora. Usa o estado persistido já calculado no card, sem criar
+ * progressão fictícia na interface.
  */
 @Composable
 private fun AcompanhamentoPedido(statusAtual: String) {
-    val etapas = listOf("Pedido realizado", "Processando", "Enviado", "Entregue")
+    val etapas = listOf("Pedido confirmado", "Preparando", "Enviado", "Entregue")
     val indiceAtual = when (statusAtual) {
-        "Processando" -> 1
+        "Preparando" -> 1
         "Enviado" -> 2
         "Entregue" -> 3
         else -> 0

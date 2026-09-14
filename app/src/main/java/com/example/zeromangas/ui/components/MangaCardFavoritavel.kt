@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.unit.dp
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.ui.theme.Spacing
 
@@ -67,20 +66,22 @@ fun MangaCardFavoritavel(
         Box(
             modifier = Modifier
                 .padding(Spacing.xs)
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                .size(Spacing.touchTarget)
                 .clickable { onFavoritoClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .size(18.dp)
-                    .scale(escalaCoracao)
-            )
+            Box(
+                modifier = Modifier.size(Spacing.overlayVisualSize).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(Spacing.iconSmall).scale(escalaCoracao)
+                )
+            }
         }
 
         if (onAdicionarAoCarrinho != null) {
@@ -89,22 +90,22 @@ fun MangaCardFavoritavel(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(Spacing.xs)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                    .size(Spacing.touchTarget)
                     .clickable(enabled = !esgotado) { onAdicionarAoCarrinho() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.AddShoppingCart,
-                    contentDescription = if (esgotado) "Produto esgotado" else "Adicionar ao carrinho",
-                    tint = if (esgotado) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                    modifier = Modifier.size(18.dp)
-                )
+                Box(
+                    modifier = Modifier.size(Spacing.overlayVisualSize).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddShoppingCart,
+                        contentDescription = if (esgotado) "Produto esgotado" else "Adicionar ao carrinho",
+                        tint = if (esgotado) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(Spacing.iconSmall)
+                    )
+                }
             }
         }
     }

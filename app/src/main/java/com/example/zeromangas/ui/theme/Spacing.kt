@@ -42,4 +42,11 @@ object Spacing {
     val mangaCoverHeight = 180.dp
     val categoryIconSize = 56.dp
     val bottomNavHeight = 72.dp
+
+    // Dimensões de mídia e feedback reutilizadas nas telas de catálogo.
+    val bannerHeight = 184.dp
+    val heroCoverHeight = 380.dp
+    val overlayVisualSize = 36.dp
+    val skeletonTextLargeHeight = 14.dp
+    val skeletonTextSmallHeight = 12.dp
 }

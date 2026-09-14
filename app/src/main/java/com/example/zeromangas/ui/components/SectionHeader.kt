@@ -10,9 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.example.zeromangas.ui.theme.RoxoNeonClaro
 import com.example.zeromangas.ui.theme.Spacing
-import com.example.zeromangas.ui.theme.TextoPrincipal
 
 /**
  * Cabeçalho de uma seção horizontal da Home (ex: "🔥 Mais vendidos   Ver todos >").
@@ -27,20 +25,20 @@ fun SectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = titulo,
             style = MaterialTheme.typography.titleLarge,
-            color = TextoPrincipal
+            color = MaterialTheme.colorScheme.onSurface
         )
         if (onVerTodosClick != null) {
             Text(
                 text = "Ver todos >",
                 style = MaterialTheme.typography.bodyMedium,
-                color = RoxoNeonClaro,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable { onVerTodosClick() }
             )
         }

@@ -298,7 +298,7 @@ private fun BannerDestaque(manga: Manga, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.screenHorizontal)
-            .height(184.dp)
+            .height(Spacing.bannerHeight)
             .clip(RoundedCornerShape(Spacing.radiusLarge))
             .background(MaterialTheme.colorScheme.surface)
             .clickable { onClick() }

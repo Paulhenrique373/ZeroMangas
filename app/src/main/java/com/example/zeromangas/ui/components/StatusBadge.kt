@@ -25,13 +25,13 @@ import com.example.zeromangas.ui.theme.VerdeSucesso
 import com.example.zeromangas.ui.theme.VermelhoErro
 
 /**
- * Retorna a cor semântica de um status de pedido (Processando/Enviado/Entregue/Cancelado).
+ * Retorna a cor semântica de um status de pedido exibido na interface.
  * Extraída de PedidosScreen.kt na ETAPA 1 (design system) para virar componente
  * global reutilizável, exatamente com o mesmo mapeamento de cores de antes.
  */
 fun corDoStatusPedido(status: String): Color {
     return when (status) {
-        "Processando" -> AmareloDestaque
+        "Pedido confirmado", "Preparando" -> AmareloDestaque
         "Enviado" -> RoxoNeonClaro
         "Cancelado" -> VermelhoErro
         else -> VerdeSucesso // Entregue

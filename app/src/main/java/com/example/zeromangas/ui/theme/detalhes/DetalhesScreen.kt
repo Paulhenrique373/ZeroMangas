@@ -126,7 +126,7 @@ fun DetalhesScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(380.dp)
+                    .height(Spacing.heroCoverHeight)
                     .clip(RoundedCornerShape(bottomStart = Spacing.radiusLarge, bottomEnd = Spacing.radiusLarge))
                     .background(FundoCard)
             ) {

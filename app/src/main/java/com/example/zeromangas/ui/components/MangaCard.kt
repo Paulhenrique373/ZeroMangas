@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.ui.theme.BordaSutil
-import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
@@ -86,7 +85,7 @@ fun MangaCard(
                 .fillMaxWidth()
                 .shadow(Spacing.subtleElevation, RoundedCornerShape(Spacing.radiusMedium))
                 .clip(RoundedCornerShape(Spacing.radiusMedium))
-                .background(FundoCard)
+                .background(MaterialTheme.colorScheme.surface)
                 .border(Spacing.borderWidth, BordaSutil, RoundedCornerShape(Spacing.radiusMedium))
         ) {
             AsyncImage(
@@ -177,14 +176,14 @@ fun MangaCardSkeleton(modifier: Modifier = Modifier, preencherLargura: Boolean =
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(Spacing.mangaCoverHeight)
+                .aspectRatioCapa()
                 .clip(RoundedCornerShape(Spacing.radiusMedium))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         )
         Spacer(modifier = Modifier.height(Spacing.sm))
-        Box(modifier = Modifier.fillMaxWidth(0.82f).height(14.dp).clip(RoundedCornerShape(Spacing.radiusPill)).background(MaterialTheme.colorScheme.surfaceVariant))
+        Box(modifier = Modifier.fillMaxWidth(0.82f).height(Spacing.skeletonTextLargeHeight).clip(RoundedCornerShape(Spacing.radiusPill)).background(MaterialTheme.colorScheme.surfaceVariant))
         Spacer(modifier = Modifier.height(Spacing.xs))
-        Box(modifier = Modifier.fillMaxWidth(0.45f).height(12.dp).clip(RoundedCornerShape(Spacing.radiusPill)).background(MaterialTheme.colorScheme.surfaceVariant))
+        Box(modifier = Modifier.fillMaxWidth(0.45f).height(Spacing.skeletonTextSmallHeight).clip(RoundedCornerShape(Spacing.radiusPill)).background(MaterialTheme.colorScheme.surfaceVariant))
     }
 }
 
