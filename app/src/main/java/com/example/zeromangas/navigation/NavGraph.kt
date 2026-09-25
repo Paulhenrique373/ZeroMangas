@@ -548,7 +548,7 @@ fun NavGraph() {
 
                 when {
                     verificando -> LoadingState(modifier = Modifier.fillMaxSize())
-                    autorizado -> AdminDashboardScreen(onVoltar = { navController.popBackStack() })
+                    autorizado -> AdminDashboardScreen(adminRepository = adminRepository, onVoltar = { navController.popBackStack() })
                     else -> EmptyState(
                         titulo = "Acesso negado",
                         subtitulo = "Você não tem permissão para acessar o painel administrativo.",
