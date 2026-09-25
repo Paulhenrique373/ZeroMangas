@@ -16,9 +16,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.LoadingState
+import com.example.zeromangas.ui.components.RequerLoginDialog
 import com.example.zeromangas.ui.theme.RoxoNeon
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.TextoPrincipal
@@ -56,6 +58,7 @@ import com.example.zeromangas.viewmodel.EnderecoViewModel
 import com.example.zeromangas.viewmodel.FavoritoViewModel
 import com.example.zeromangas.viewmodel.HomeViewModel
 import com.example.zeromangas.viewmodel.NotificacaoViewModel
+import kotlinx.coroutines.launch
 
 sealed class Tela(val rota: String) {
     object Login : Tela("login")
@@ -102,6 +105,34 @@ fun NavGraph() {
     val rotaAtual = backStackEntry?.destination?.route
     val itensCarrinho by cartViewModel.itens.collectAsState()
     val quantidadeNoCarrinho = itensCarrinho.sumOf { it.quantidade }
+    val escopoNav = rememberCoroutineScope()
+
+    // ---- Modo visitante ----
+    // Não existe um "estado de visitante" separado: um usuário sem conta é
+    // simplesmente authRepository.currentUser == null, exatamente como o resto
+    // do código já trata (authRepository.currentUser?.uid.orEmpty() em cada
+    // tela). "Continuar sem conta" só pula a tela de Login sem criar sessão
+    // nenhuma no Supabase Auth (item 8 do pedido).
+    //
+    // rotaPendenteAposLogin guarda pra onde navegar quando o visitante conclui
+    // login/cadastro DEPOIS de ter sido barrado tentando usar algo que exige
+    // conta (compra, perfil, favoritos, etc). Null = fluxo normal de
+    // login/cadastro, vai pra Home como sempre foi.
+    var rotaPendenteAposLogin by remember { mutableStateOf<String?>(null) }
+    var mostrarDialogoLogin by remember { mutableStateOf(false) }
+
+    fun exigirLogin(destinoAposLogin: String?) {
+        rotaPendenteAposLogin = destinoAposLogin
+        mostrarDialogoLogin = true
+    }
+
+    fun navegarAposAutenticar() {
+        val destino = rotaPendenteAposLogin
+        rotaPendenteAposLogin = null
+        navController.navigate(destino ?: Tela.Home.rota) {
+            popUpTo(Tela.Login.rota) { inclusive = true }
+        }
+    }
 
     // ETAPA 11 (polimento, parte 3): Snackbar global de sucesso, vivendo no NavGraph
     // (fora de qualquer tela específica) pra funcionar não importa de onde o item
@@ -136,12 +167,21 @@ fun NavGraph() {
                     quantidadeNoCarrinho = quantidadeNoCarrinho,
                     onAbaSelecionada = { aba ->
                         if (aba.rota != rotaAtual) {
-                            navController.navigate(aba.rota) {
-                                popUpTo(Tela.Home.rota) {
-                                    saveState = true
+                            // Item 7: Favoritos e Perfil dependem de uma conta (favoritos
+                            // vinculados ao usuário, dados pessoais, pedidos, endereços).
+                            // Barra o visitante ANTES de navegar, em vez de deixar a tela
+                            // abrir vazia/quebrada — Home, Busca e Carrinho continuam livres.
+                            val exigeConta = aba == AbaPrincipal.FAVORITOS || aba == AbaPrincipal.PERFIL
+                            if (exigeConta && authRepository.currentUser == null) {
+                                exigirLogin(aba.rota)
+                            } else {
+                                navController.navigate(aba.rota) {
+                                    popUpTo(Tela.Home.rota) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
                         }
                     }
@@ -149,6 +189,27 @@ fun NavGraph() {
             }
         }
     ) { paddingInterno ->
+        if (mostrarDialogoLogin) {
+            RequerLoginDialog(
+                onEntrar = {
+                    mostrarDialogoLogin = false
+                    navController.navigate(Tela.Login.rota)
+                },
+                onCriarConta = {
+                    mostrarDialogoLogin = false
+                    // Mesmo caminho Login -> Cadastro que o app já usa (Cadastro fica
+                    // empilhado sobre Login), pra o popUpTo(Login) do navegarAposAutenticar()
+                    // continuar limpando as duas telas depois do cadastro concluído.
+                    navController.navigate(Tela.Login.rota)
+                    navController.navigate(Tela.Cadastro.rota)
+                },
+                onContinuarNavegando = {
+                    mostrarDialogoLogin = false
+                    rotaPendenteAposLogin = null
+                }
+            )
+        }
+
         NavHost(
             navController = navController,
             startDestination = Tela.Login.rota,
@@ -166,13 +227,24 @@ fun NavGraph() {
             composable(Tela.Login.rota) {
                 LoginScreen(
                     authViewModel = authViewModel,
-                    onLoginSucesso = {
-                        navController.navigate(Tela.Home.rota) {
-                            popUpTo(Tela.Login.rota) { inclusive = true }
-                        }
-                    },
+                    onLoginSucesso = { navegarAposAutenticar() },
                     onIrParaCadastro = {
                         navController.navigate(Tela.Cadastro.rota)
+                    },
+                    onContinuarSemConta = {
+                        // Item 8: não cria conta nem sessão nenhuma no Supabase Auth.
+                        // Antes de entrar como visitante, garante (suspend, então
+                        // esperamos terminar) que nenhuma sessão antiga salva no
+                        // aparelho continua valendo — senão o app "reconheceria"
+                        // o visitante como o usuário anterior (e-mail antigo
+                        // aparecendo em qualquer tela que leia currentUser).
+                        rotaPendenteAposLogin = null
+                        escopoNav.launch {
+                            authRepository.encerrarSessaoResidual()
+                            navController.navigate(Tela.Home.rota) {
+                                popUpTo(Tela.Login.rota) { inclusive = true }
+                            }
+                        }
                     }
                 )
             }
@@ -180,11 +252,7 @@ fun NavGraph() {
             composable(Tela.Cadastro.rota) {
                 RegisterScreen(
                     authViewModel = authViewModel,
-                    onCadastroSucesso = {
-                        navController.navigate(Tela.Home.rota) {
-                            popUpTo(Tela.Login.rota) { inclusive = true }
-                        }
-                    },
+                    onCadastroSucesso = { navegarAposAutenticar() },
                     onVoltarParaLogin = {
                         navController.popBackStack()
                     }
@@ -201,8 +269,14 @@ fun NavGraph() {
                         navController.navigate(Tela.Detalhes.criarRota(manga.id))
                     },
                     onNotificacoesClick = {
-                        navController.navigate(Tela.Notificacoes.rota)
+                        // Notificações são vinculadas à conta (item 7).
+                        if (authRepository.currentUser == null) {
+                            exigirLogin(Tela.Notificacoes.rota)
+                        } else {
+                            navController.navigate(Tela.Notificacoes.rota)
+                        }
                     },
+                    onRequerLogin = { exigirLogin(null) },
                     quantidadeNoCarrinho = quantidadeNoCarrinho,
                     onCarrinhoClick = {
                         navController.navigate(Tela.Carrinho.rota) {
@@ -270,6 +344,7 @@ fun NavGraph() {
                             recomendados = recomendados,
                             favoritoViewModel = favoritoViewModel,
                             usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                            onRequerLogin = { exigirLogin(null) },
                             onVoltar = { navController.popBackStack() },
                             onAdicionarAoCarrinho = { mangaSelecionado, quantidade ->
                                 repeat(quantidade) { cartViewModel.adicionarItem(mangaSelecionado) }
@@ -290,7 +365,14 @@ fun NavGraph() {
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
                     onVoltar = { navController.popBackStack() },
                     onIrParaCheckout = {
-                        navController.navigate(Tela.Checkout.rota)
+                        // Regra principal (item 2/10): navegar não exige conta, comprar exige.
+                        // O carrinho em si não é mexido aqui — continua intacto no CartViewModel
+                        // enquanto o visitante entra/cadastra e volta pra cá (item 4).
+                        if (authRepository.currentUser == null) {
+                            exigirLogin(Tela.Checkout.rota)
+                        } else {
+                            navController.navigate(Tela.Checkout.rota)
+                        }
                     },
                     onExplorarClick = {
                         // Mesmo padrão de troca de aba usado pelo BottomNavBar,
@@ -446,6 +528,7 @@ fun NavGraph() {
                     buscaViewModel = homeViewModel,
                     favoritoViewModel = favoritoViewModel,
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                    onRequerLogin = { exigirLogin(null) },
                     onMangaClick = { manga ->
                         navController.navigate(Tela.Detalhes.criarRota(manga.id))
                     }

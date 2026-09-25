@@ -67,6 +67,7 @@ fun DetalhesScreen(
     onAdicionarAoCarrinho: (Manga, Int) -> Unit,
     recomendados: List<Manga> = emptyList(),
     onMangaClick: (Manga) -> Unit = {},
+    onRequerLogin: () -> Unit = {},
     avaliacaoViewModel: AvaliacaoViewModel
 ) {
     if (manga == null) {
@@ -89,6 +90,11 @@ fun DetalhesScreen(
 
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
     val isFavorito = manga.id in favoritosIds
+    // Favoritos são vinculados à conta (item 7): visitante é direcionado pro
+    // fluxo de login/cadastro em vez de a chamada falhar em silêncio.
+    val aoFavoritar: (Manga) -> Unit = { alvo ->
+        if (usuarioId.isBlank()) onRequerLogin() else favoritoViewModel.alternarFavorito(usuarioId, alvo)
+    }
     val avaliacoesState by avaliacaoViewModel.avaliacoesState.collectAsState()
 
     // ETAPA 11 (polimento): mesmo "pulo" do coração usado no MangaCardFavoritavel,
@@ -134,7 +140,7 @@ fun DetalhesScreen(
                     model = manga.imagemUrl,
                     contentDescription = manga.nome,
                     modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Fit
                 )
 
                 Row(
@@ -150,7 +156,7 @@ fun DetalhesScreen(
                         contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
                         tint = if (isFavorito) RoxoNeonClaro else TextoPrincipal,
                         escala = escalaFavorito,
-                        onClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
+                        onClick = { aoFavoritar(manga) }
                     )
                 }
 
@@ -289,7 +295,7 @@ fun DetalhesScreen(
                             manga = recomendado,
                             isFavorito = recomendado.id in favoritosIds,
                             onClick = { onMangaClick(recomendado) },
-                            onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, recomendado) }
+                            onFavoritoClick = { aoFavoritar(recomendado) }
                         )
                     }
                 }

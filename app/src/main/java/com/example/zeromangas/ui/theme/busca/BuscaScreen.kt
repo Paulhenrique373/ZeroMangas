@@ -73,7 +73,8 @@ fun BuscaScreen(
     buscaViewModel: HomeViewModel = viewModel(),
     favoritoViewModel: FavoritoViewModel,
     usuarioId: String,
-    onMangaClick: (Manga) -> Unit
+    onMangaClick: (Manga) -> Unit,
+    onRequerLogin: () -> Unit = {}
 ) {
     val mangas by buscaViewModel.mangasFiltrados.collectAsState()
     val categorias by buscaViewModel.categorias.collectAsState()
@@ -88,6 +89,11 @@ fun BuscaScreen(
     val ordenacao by buscaViewModel.ordenacao.collectAsState()
     val quantidadeFiltrosAtivos by buscaViewModel.quantidadeFiltrosAtivos.collectAsState()
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
+    // Favoritos são vinculados à conta (item 7): visitante é direcionado pro
+    // fluxo de login/cadastro em vez de a chamada falhar em silêncio.
+    val aoFavoritar: (Manga) -> Unit = { manga ->
+        if (usuarioId.isBlank()) onRequerLogin() else favoritoViewModel.alternarFavorito(usuarioId, manga)
+    }
 
     var mostrarFiltros by remember { mutableStateOf(false) }
     var mostrarOrdenacao by remember { mutableStateOf(false) }
@@ -306,7 +312,7 @@ fun BuscaScreen(
                                 registrarPesquisa(textoBusca)
                                 onMangaClick(manga)
                             },
-                            onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) },
+                            onFavoritoClick = { aoFavoritar(manga) },
                             preencherLargura = true
                         )
                     }

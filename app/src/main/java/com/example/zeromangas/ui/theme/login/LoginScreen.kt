@@ -41,7 +41,8 @@ import com.example.zeromangas.viewmodel.AuthViewModel
 fun LoginScreen(
     authViewModel: AuthViewModel = viewModel(),
     onLoginSucesso: () -> Unit,
-    onIrParaCadastro: () -> Unit
+    onIrParaCadastro: () -> Unit,
+    onContinuarSemConta: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
@@ -113,7 +114,29 @@ fun LoginScreen(
                 Text("Ainda não tem conta? ")
                 Text("Cadastrar", color = RoxoNeon)
             }
+
+            Spacer(Modifier.height(Spacing.sm))
+            SeparadorOu()
+            Spacer(Modifier.height(Spacing.sm))
+            TextButton(onClick = onContinuarSemConta) {
+                Text("Continuar sem conta", color = TextoSecundario)
+            }
         }
+    }
+}
+
+/** Divisor "── ou ──" usado para não competir visualmente com o botão principal de login. */
+@Composable
+private fun SeparadorOu() {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        Text(
+            "ou",
+            style = MaterialTheme.typography.labelMedium,
+            color = TextoSecundario,
+            modifier = Modifier.padding(horizontal = Spacing.sm)
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

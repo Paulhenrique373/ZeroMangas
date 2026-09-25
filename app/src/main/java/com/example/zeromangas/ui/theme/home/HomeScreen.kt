@@ -53,6 +53,7 @@ fun HomeScreen(
     onMangaClick: (Manga) -> Unit = {},
     onBuscaClick: () -> Unit = {},
     onNotificacoesClick: () -> Unit = {},
+    onRequerLogin: () -> Unit = {},
     quantidadeNoCarrinho: Int = 0,
     onCarrinhoClick: () -> Unit = {}
 ) {
@@ -66,159 +67,165 @@ fun HomeScreen(
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
     val quantidadeNotificacoesNaoLidas by notificacaoViewModel.quantidadeNaoLidas.collectAsState()
 
+    // Favoritos são vinculados à conta (item 7): visitante (usuarioId em branco)
+    // é direcionado pro fluxo de login/cadastro em vez de a chamada falhar em silêncio.
+    val aoFavoritar: (Manga) -> Unit = { manga ->
+        if (usuarioId.isBlank()) onRequerLogin() else favoritoViewModel.alternarFavorito(usuarioId, manga)
+    }
+
     LaunchedEffect(usuarioId) {
         favoritoViewModel.carregarFavoritos(usuarioId)
         notificacaoViewModel.iniciar(usuarioId)
     }
 
     when {
-            carregando && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
-                LoadingState()
-            }
+        carregando && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
+            LoadingState()
+        }
 
-            erro != null && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(Spacing.xl),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = erro ?: "",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    PrimaryButton(
-                        text = "Tentar novamente",
-                        onClick = { homeViewModel.carregarDados() }
-                    )
-                }
-            }
-
-            mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
-                EmptyState(
-                    titulo = "Catálogo vazio",
-                    subtitulo = "Ainda não há mangás cadastrados no momento.",
-                    modifier = Modifier.fillMaxSize()
+        erro != null && mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = erro ?: "",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+                PrimaryButton(
+                    text = "Tentar novamente",
+                    onClick = { homeViewModel.carregarDados() }
                 )
             }
+        }
 
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = Spacing.lg, bottom = Spacing.xxl),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sectionGap)
-                ) {
+        mangasEmDestaque.isEmpty() && mangasLancamentos.isEmpty() -> {
+            EmptyState(
+                titulo = "Catálogo vazio",
+                subtitulo = "Ainda não há mangás cadastrados no momento.",
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        else -> {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = Spacing.lg, bottom = Spacing.xxl),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sectionGap)
+            ) {
+                item {
+                    HomeHeader(
+                        quantidadeNotificacoes = quantidadeNotificacoesNaoLidas,
+                        quantidadeNoCarrinho = quantidadeNoCarrinho,
+                        onNotificacoesClick = onNotificacoesClick,
+                        onCarrinhoClick = onCarrinhoClick
+                    )
+                }
+                item { HomeSearchField(onClick = onBuscaClick) }
+                if (categorias.isNotEmpty()) {
                     item {
-                        HomeHeader(
-                            quantidadeNotificacoes = quantidadeNotificacoesNaoLidas,
-                            quantidadeNoCarrinho = quantidadeNoCarrinho,
-                            onNotificacoesClick = onNotificacoesClick,
-                            onCarrinhoClick = onCarrinhoClick
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            items(categorias, key = { it }) { categoria ->
+                                CategoryChip(
+                                    texto = categoria,
+                                    selecionado = categoriaSelecionada == categoria,
+                                    onClick = {
+                                        homeViewModel.selecionarCategoria(categoria)
+                                        onBuscaClick()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                // Banner de destaque: usa o primeiro mangá marcado como destaque
+                val destaque = mangasEmDestaque.firstOrNull()
+                if (destaque != null) {
+                    item {
+                        BannerDestaque(
+                            manga = destaque,
+                            onClick = { onMangaClick(destaque) }
                         )
                     }
-                    item { HomeSearchField(onClick = onBuscaClick) }
-                    if (categorias.isNotEmpty()) {
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                            ) {
-                                items(categorias, key = { it }) { categoria ->
-                                    CategoryChip(
-                                        texto = categoria,
-                                        selecionado = categoriaSelecionada == categoria,
-                                        onClick = {
-                                            homeViewModel.selecionarCategoria(categoria)
-                                            onBuscaClick()
-                                        }
-                                    )
-                                }
+                }
+
+                // Mais vendidos: usa os mangás marcados como destaque
+                // (não há contagem real de vendas hoje)
+                if (mangasEmDestaque.isNotEmpty()) {
+                    item {
+                        SectionHeader(titulo = "🔥 Mais vendidos", onVerTodosClick = onBuscaClick)
+                    }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
+                        ) {
+                            items(mangasEmDestaque, key = { "destaque_${it.id}" }) { manga ->
+                                MangaCardFavoritavel(
+                                    manga = manga,
+                                    isFavorito = manga.id in favoritosIds,
+                                    onClick = { onMangaClick(manga) },
+                                    onFavoritoClick = { aoFavoritar(manga) }
+                                )
                             }
                         }
                     }
-                    // Banner de destaque: usa o primeiro mangá marcado como destaque
-                    val destaque = mangasEmDestaque.firstOrNull()
-                    if (destaque != null) {
-                        item {
-                            BannerDestaque(
-                                manga = destaque,
-                                onClick = { onMangaClick(destaque) }
-                            )
-                        }
-                    }
+                }
 
-                    // Mais vendidos: usa os mangás marcados como destaque
-                    // (não há contagem real de vendas hoje)
-                    if (mangasEmDestaque.isNotEmpty()) {
-                        item {
-                            SectionHeader(titulo = "🔥 Mais vendidos", onVerTodosClick = onBuscaClick)
-                        }
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
-                            ) {
-                                items(mangasEmDestaque, key = { "destaque_${it.id}" }) { manga ->
-                                    MangaCardFavoritavel(
-                                        manga = manga,
-                                        isFavorito = manga.id in favoritosIds,
-                                        onClick = { onMangaClick(manga) },
-                                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
-                                    )
-                                }
+                // Lançamentos (heurística: últimos itens do catálogo, ver HomeViewModel)
+                if (mangasLancamentos.isNotEmpty()) {
+                    item {
+                        SectionHeader(titulo = "🆕 Lançamentos", onVerTodosClick = onBuscaClick)
+                    }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
+                        ) {
+                            items(mangasLancamentos, key = { "lancamento_${it.id}" }) { manga ->
+                                MangaCardFavoritavel(
+                                    manga = manga,
+                                    isFavorito = manga.id in favoritosIds,
+                                    onClick = { onMangaClick(manga) },
+                                    onFavoritoClick = { aoFavoritar(manga) }
+                                )
                             }
                         }
                     }
+                }
 
-                    // Lançamentos (heurística: últimos itens do catálogo, ver HomeViewModel)
-                    if (mangasLancamentos.isNotEmpty()) {
-                        item {
-                            SectionHeader(titulo = "🆕 Lançamentos", onVerTodosClick = onBuscaClick)
-                        }
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
-                            ) {
-                                items(mangasLancamentos, key = { "lancamento_${it.id}" }) { manga ->
-                                    MangaCardFavoritavel(
-                                        manga = manga,
-                                        isFavorito = manga.id in favoritosIds,
-                                        onClick = { onMangaClick(manga) },
-                                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
-                                    )
-                                }
-                            }
-                        }
+                // Recomendações: mesma categoria do mangá em destaque (ver HomeViewModel)
+                if (mangasRecomendados.isNotEmpty()) {
+                    item {
+                        SectionHeader(titulo = "✨ Recomendados para você", onVerTodosClick = onBuscaClick)
                     }
-
-                    // Recomendações: mesma categoria do mangá em destaque (ver HomeViewModel)
-                    if (mangasRecomendados.isNotEmpty()) {
-                        item {
-                            SectionHeader(titulo = "✨ Recomendados para você", onVerTodosClick = onBuscaClick)
-                        }
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
-                            ) {
-                                items(mangasRecomendados, key = { "recomendado_${it.id}" }) { manga ->
-                                    MangaCardFavoritavel(
-                                        manga = manga,
-                                        isFavorito = manga.id in favoritosIds,
-                                        onClick = { onMangaClick(manga) },
-                                        onFavoritoClick = { favoritoViewModel.alternarFavorito(usuarioId, manga) }
-                                    )
-                                }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
+                        ) {
+                            items(mangasRecomendados, key = { "recomendado_${it.id}" }) { manga ->
+                                MangaCardFavoritavel(
+                                    manga = manga,
+                                    isFavorito = manga.id in favoritosIds,
+                                    onClick = { onMangaClick(manga) },
+                                    onFavoritoClick = { aoFavoritar(manga) }
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
 }
 
 @Composable

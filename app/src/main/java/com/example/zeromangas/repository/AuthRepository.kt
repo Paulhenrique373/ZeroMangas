@@ -93,6 +93,28 @@ class AuthRepository {
     }
 
     /**
+     * Encerra qualquer sessão do Supabase Auth ainda salva no aparelho (de um
+     * login anterior), de forma **suspend** — ou seja, dá pra esperar ela
+     * terminar antes de seguir em frente. Usado só por "Continuar sem conta":
+     * sem isso, se já existisse uma sessão válida no dispositivo, o visitante
+     * seria "reconhecido" como aquele usuário antigo (e-mail antigo aparecendo
+     * em telas que leem authRepository.currentUser) mesmo sem ter digitado nada.
+     *
+     * Diferente de [logout] (que é fire-and-forget de propósito — ver comentário
+     * dele): aqui o chamador está dentro de uma coroutine e PRECISA garantir que
+     * a sessão já caiu antes de navegar pra Home como visitante.
+     */
+    suspend fun encerrarSessaoResidual() {
+        if (auth.currentUserOrNull() == null) return
+        try {
+            auth.signOut()
+        } catch (_: Exception) {
+            // Ex.: sem internet — a sessão local já é descartada pelo SDK mesmo
+            // assim (o signOut local não depende da chamada de rede ter sucesso).
+        }
+    }
+
+    /**
      * Continua não-suspend de propósito (mesma assinatura de antes), já que
      * quem chama (AuthViewModel.logout(), acionado direto do onClick nas
      * telas) não está dentro de uma coroutine. O signOut() de verdade roda
