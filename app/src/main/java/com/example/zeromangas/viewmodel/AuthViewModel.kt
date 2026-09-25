@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zeromangas.data.model.PerfilCliente
 import com.example.zeromangas.data.model.User
 import com.example.zeromangas.repository.StorageRepository
+import com.example.zeromangas.repository.AdminRepository
 import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.UsuarioRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +59,7 @@ class AuthViewModel : ViewModel() {
     private val repository = AuthRepository()
     private val storageRepository = StorageRepository()
     private val usuarioRepository = UsuarioRepository()
+    private val adminRepository = AdminRepository()
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState
@@ -79,6 +81,11 @@ class AuthViewModel : ViewModel() {
 
     private val _credenciaisState = MutableStateFlow<CredenciaisState>(CredenciaisState.Idle)
     val credenciaisState: StateFlow<CredenciaisState> = _credenciaisState
+
+    // Nunca setado diretamente pra "true" por nenhum caller — só verificarAdmin()
+    // escreve aqui, e sempre a partir da resposta do banco (ver AdminRepository).
+    private val _souAdmin = MutableStateFlow(false)
+    val souAdmin: StateFlow<Boolean> = _souAdmin
 
     val usuarioLogado get() = repository.currentUser != null
 
@@ -102,6 +109,7 @@ class AuthViewModel : ViewModel() {
                         onSuccess = {
                             _authState.value = AuthState.Sucesso
                             carregarUsuario()
+                            verificarAdmin()
                         },
                         onFailure = { erro ->
                             _authState.value = AuthState.Erro(
@@ -136,6 +144,7 @@ class AuthViewModel : ViewModel() {
                         onSuccess = {
                             _authState.value = AuthState.Sucesso
                             carregarUsuario()
+                            verificarAdmin()
                         },
                         onFailure = { erro ->
                             _authState.value = AuthState.Erro(
@@ -153,6 +162,7 @@ class AuthViewModel : ViewModel() {
         repository.logout()
         _authState.value = AuthState.Idle
         _usuarioAtual.value = null
+        _souAdmin.value = false
     }
 
     fun resetarEstado() {
@@ -161,6 +171,23 @@ class AuthViewModel : ViewModel() {
 
     fun carregarUsuario() {
         _usuarioAtual.value = repository.obterUsuarioAtual()
+    }
+
+    /**
+     * Confere no banco se o usuário logado tem o perfil "admin" (tabelas
+     * perfis/usuario_perfil, via a função sou_admin()). Chamar depois de login/cadastro
+     * bem-sucedidos e sempre que a tela de Perfil ou o Painel Admin forem abertos —
+     * nunca cachear esse valor além da sessão do ViewModel.
+     */
+    fun verificarAdmin() {
+        if (repository.currentUser == null) {
+            _souAdmin.value = false
+            return
+        }
+        viewModelScope.launch {
+            val resultado = adminRepository.souAdmin()
+            _souAdmin.value = resultado.getOrDefault(false)
+        }
     }
 
     fun atualizarPerfil(nome: String, fotoUrl: String) {

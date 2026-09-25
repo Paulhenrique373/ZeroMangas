@@ -33,8 +33,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.zeromangas.data.model.Manga
+import com.example.zeromangas.repository.AdminRepository
 import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.MangaRepository
+import com.example.zeromangas.ui.theme.admin.AdminDashboardScreen
 import com.example.zeromangas.ui.theme.busca.BuscaScreen
 import com.example.zeromangas.ui.components.AbaPrincipal
 import com.example.zeromangas.ui.components.BottomNavBar
@@ -73,6 +75,7 @@ sealed class Tela(val rota: String) {
     object Favoritos : Tela("favoritos")
     object Busca : Tela("busca")
     object Notificacoes : Tela("notificacoes")
+    object Admin : Tela("admin")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -85,6 +88,7 @@ sealed class Tela(val rota: String) {
 fun NavGraph() {
     val navController: NavHostController = rememberNavController()
     val mangaRepository = remember { MangaRepository() }
+    val adminRepository = remember { AdminRepository() }
     val authRepository = AuthRepository()
     val cartViewModel: CartViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
@@ -458,6 +462,9 @@ fun NavGraph() {
                             launchSingleTop = true
                         }
                     },
+                    onAdminClick = {
+                        navController.navigate(Tela.Admin.rota)
+                    },
                     onLogoutClick = {
                         authViewModel.logout()
                         cartViewModel.limparCarrinho()
@@ -521,6 +528,33 @@ fun NavGraph() {
                         }
                     }
                 )
+            }
+
+            composable(Tela.Admin.rota) {
+                // Item 33 do pedido: proteção contra acesso direto. Mesmo que alguém
+                // force a navegação pra "admin" (deep link, back stack manipulado etc),
+                // essa tela sempre reconfirma no banco antes de mostrar qualquer coisa —
+                // nunca reaproveita um estado do AuthViewModel só porque a navegação
+                // partiu do botão do Perfil. Nenhum dado administrativo é carregado
+                // antes dessa confirmação.
+                var verificando by remember { mutableStateOf(true) }
+                var autorizado by remember { mutableStateOf(false) }
+
+                LaunchedEffect(Unit) {
+                    verificando = true
+                    autorizado = adminRepository.souAdmin().getOrDefault(false)
+                    verificando = false
+                }
+
+                when {
+                    verificando -> LoadingState(modifier = Modifier.fillMaxSize())
+                    autorizado -> AdminDashboardScreen(onVoltar = { navController.popBackStack() })
+                    else -> EmptyState(
+                        titulo = "Acesso negado",
+                        subtitulo = "Você não tem permissão para acessar o painel administrativo.",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             composable(Tela.Busca.rota) {

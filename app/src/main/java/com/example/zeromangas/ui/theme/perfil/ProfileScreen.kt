@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
@@ -58,11 +59,13 @@ fun ProfileScreen(
     onEnderecosClick: () -> Unit = {},
     onNotificacoesClick: () -> Unit = {},
     onCuponsClick: () -> Unit = {},
+    onAdminClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val usuario by authViewModel.usuarioAtual.collectAsState()
     val uploadFotoState by authViewModel.uploadFotoState.collectAsState()
+    val souAdmin by authViewModel.souAdmin.collectAsState()
     var fotoLocal by remember { mutableStateOf<Uri?>(null) }
     var confirmarSaida by remember { mutableStateOf(false) }
 
@@ -73,7 +76,14 @@ fun ProfileScreen(
         }
     }
 
-    LaunchedEffect(Unit) { authViewModel.carregarUsuario() }
+    LaunchedEffect(Unit) {
+        authViewModel.carregarUsuario()
+        // Reconfirma no banco toda vez que a tela de Perfil abre — nunca reaproveita
+        // um valor antigo, então mesmo que o perfil admin tenha sido revogado depois
+        // do último login, o botão do Painel some na próxima vez que o usuário
+        // passar por aqui.
+        authViewModel.verificarAdmin()
+    }
     LaunchedEffect(uploadFotoState) {
         val estado = uploadFotoState
         if (estado is UploadFotoState.Sucesso && !usuario?.nome.isNullOrBlank()) {
@@ -155,6 +165,14 @@ fun ProfileScreen(
         }
         PerfilSecao("Entrega") {
             ItemMenuPerfil(Icons.Default.LocationOn, "Meus endereços", "Gerencie onde receber seus pedidos", onEnderecosClick)
+        }
+        // Só aparece pra quem o banco confirma como admin (souAdmin vem de
+        // AuthViewModel.verificarAdmin(), nunca de um valor fixo no app) — cliente
+        // comum nunca vê essa seção, nem sabe que ela existe.
+        if (souAdmin) {
+            PerfilSecao("Administração") {
+                ItemMenuPerfil(Icons.Default.AdminPanelSettings, "Painel Administrativo", "Gerenciar loja", onAdminClick)
+            }
         }
         PerfilSecao("Conta") {
             ItemMenuPerfil(Icons.Default.Notifications, "Notificações", "Atualizações e novidades", onNotificacoesClick)
