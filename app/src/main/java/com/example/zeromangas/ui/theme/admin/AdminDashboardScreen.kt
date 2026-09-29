@@ -1,5 +1,6 @@
 package com.example.zeromangas.ui.theme.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -7,7 +8,11 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.example.zeromangas.repository.AdminRepository
 import com.example.zeromangas.repository.DashboardResumoDto
 import com.example.zeromangas.ui.components.EmptyState
@@ -48,7 +54,14 @@ private val opcoesPeriodo = listOf(
  * só da tela em volta (ver composable(Tela.Admin.rota) no NavGraph).
  */
 @Composable
-fun AdminDashboardScreen(adminRepository: AdminRepository, onVoltar: () -> Unit) {
+fun AdminDashboardScreen(
+    adminRepository: AdminRepository,
+    onVoltar: () -> Unit,
+    onProdutosClick: () -> Unit = {},
+    onCategoriasClick: () -> Unit = {},
+    onMarcasClick: () -> Unit = {},
+    onEstoqueClick: () -> Unit = {}
+) {
     var periodoSelecionado by remember { mutableStateOf(opcoesPeriodo[1]) } // padrão: 30 dias
     var carregando by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
@@ -97,6 +110,21 @@ fun AdminDashboardScreen(adminRepository: AdminRepository, onVoltar: () -> Unit)
 
         Spacer(Modifier.height(Spacing.md))
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.screenHorizontal)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            AtalhoCard("Produtos", Icons.Default.Inventory2, onProdutosClick)
+            AtalhoCard("Categorias", Icons.AutoMirrored.Filled.List, onCategoriasClick)
+            AtalhoCard("Editoras", Icons.Default.Sell, onMarcasClick)
+            AtalhoCard("Estoque", Icons.Default.Warehouse, onEstoqueClick)
+        }
+
+        Spacer(Modifier.height(Spacing.md))
+
         when {
             carregando -> LoadingState(modifier = Modifier.weight(1f))
             erro != null -> EmptyState(
@@ -133,6 +161,25 @@ private fun DashboardConteudo(resumo: DashboardResumoDto, modifier: Modifier = M
 }
 
 private data class CardMetrica(val titulo: String, val valor: String, val cor: Color)
+
+@Composable
+private fun AtalhoCard(titulo: String, icone: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Surface(
+        color = FundoCard,
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.width(96.dp).clickable(onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icone, null, tint = RoxoNeon)
+            Spacer(Modifier.height(Spacing.xs))
+            Text(titulo, style = MaterialTheme.typography.bodySmall, color = TextoPrincipal, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
 
 @Composable
 private fun CardMetricaItem(card: CardMetrica) {

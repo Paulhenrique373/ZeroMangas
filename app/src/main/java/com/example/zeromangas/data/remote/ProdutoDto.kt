@@ -25,6 +25,7 @@ data class ProdutoDto(
     @SerialName("total_avaliacoes") val totalAvaliacoes: Int = 0,
     @SerialName("preco_promocional") val precoPromocional: Double? = null,
     @SerialName("em_promocao") val emPromocao: Boolean = false,
+    val ativo: Boolean = true,
     val marcas: NomeDto? = null,
     val categorias: NomeDto? = null
 )
@@ -42,6 +43,6 @@ data class MarcaDto(
 
 @Serializable
 data class CategoriaDto(
-    val id: String = "",
+    @SerialName("id_categoria") val id: String = "",
     val nome: String = ""
 )

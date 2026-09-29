@@ -15,5 +15,8 @@ data class Manga(
     val notaMedia: Double = 0.0,
     val totalAvaliacoes: Int = 0,
     val precoPromocional: Double? = null,
-    val emPromocao: Boolean = false
+    val emPromocao: Boolean = false,
+    val marcaId: String = "",
+    val categoriaId: String = "",
+    val ativo: Boolean = true
 )

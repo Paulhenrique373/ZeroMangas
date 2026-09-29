@@ -37,7 +37,10 @@ private fun ProdutoDto.paraManga(): Manga = Manga(
     notaMedia = notaMedia,
     totalAvaliacoes = totalAvaliacoes,
     precoPromocional = precoPromocional,
-    emPromocao = emPromocao
+    emPromocao = emPromocao,
+    marcaId = marcaId,
+    categoriaId = categoriaId,
+    ativo = ativo
 )
 
 class MangaRepository {
@@ -47,16 +50,42 @@ class MangaRepository {
     private val marcasTable = SupabaseClient.client.postgrest.from("marcas")
 
     /**
-     * Busca todos os produtos no Supabase, já trazendo o nome da marca e da categoria
+     * Busca os produtos no Supabase, já trazendo o nome da marca e da categoria
      * através do join automático do Postgrest (marca_id -> marcas, categoria_id -> categorias).
+     * Por padrão só traz produtos ativos (catálogo da loja); o Painel Administrativo
+     * chama com [apenasAtivos] = false pra também enxergar os desativados.
      */
-    suspend fun listarMangas(): Result<List<Manga>> {
+    suspend fun listarMangas(apenasAtivos: Boolean = true): Result<List<Manga>> {
         return try {
             val dtos = produtosTable
-                .select(columns = Columns.raw("*, marcas(nome), categorias(nome)"))
+                .select(columns = Columns.raw("*, marcas(nome), categorias(nome)")) {
+                    if (apenasAtivos) {
+                        filter { eq("ativo", true) }
+                    }
+                }
                 .decodeList<ProdutoDto>()
 
             Result.success(dtos.map { it.paraManga() })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Lista categorias/marcas com id (não só o nome) — usado nos dropdowns do
+     * formulário de produto do Painel Administrativo, que precisa gravar o FK.
+     */
+    suspend fun listarCategoriasCompletas(): Result<List<CategoriaDto>> {
+        return try {
+            Result.success(categoriasTable.select().decodeList<CategoriaDto>().sortedBy { it.nome })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun listarMarcasCompletas(): Result<List<MarcaDto>> {
+        return try {
+            Result.success(marcasTable.select().decodeList<MarcaDto>().sortedBy { it.nome })
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -166,4 +195,4 @@ class MangaRepository {
         }
     }
 
-}   
+}

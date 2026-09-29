@@ -36,7 +36,13 @@ import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.repository.AdminRepository
 import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.MangaRepository
+import com.example.zeromangas.ui.theme.admin.AdminCategoriasMarcasScreen
 import com.example.zeromangas.ui.theme.admin.AdminDashboardScreen
+import com.example.zeromangas.ui.theme.admin.AdminEstoqueScreen
+import com.example.zeromangas.ui.theme.admin.AdminProdutoFormScreen
+import com.example.zeromangas.ui.theme.admin.AdminProdutosScreen
+import com.example.zeromangas.ui.theme.admin.ItemNomeado
+import com.example.zeromangas.viewmodel.AdminViewModel
 import com.example.zeromangas.ui.theme.busca.BuscaScreen
 import com.example.zeromangas.ui.components.AbaPrincipal
 import com.example.zeromangas.ui.components.BottomNavBar
@@ -76,6 +82,13 @@ sealed class Tela(val rota: String) {
     object Busca : Tela("busca")
     object Notificacoes : Tela("notificacoes")
     object Admin : Tela("admin")
+    object AdminProdutos : Tela("admin_produtos")
+    object AdminProdutoForm : Tela("admin_produto_form/{produtoId}") {
+        fun criarRota(produtoId: String) = "admin_produto_form/$produtoId"
+    }
+    object AdminCategorias : Tela("admin_categorias")
+    object AdminMarcas : Tela("admin_marcas")
+    object AdminEstoque : Tela("admin_estoque")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -95,6 +108,7 @@ fun NavGraph() {
     val favoritoViewModel: FavoritoViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
     val notificacaoViewModel: NotificacaoViewModel = viewModel()
+    val adminViewModel: AdminViewModel = viewModel()
 
     // Rotas em que a navegação inferior deve aparecer.
     val rotasComBottomBar = setOf(
@@ -548,13 +562,78 @@ fun NavGraph() {
 
                 when {
                     verificando -> LoadingState(modifier = Modifier.fillMaxSize())
-                    autorizado -> AdminDashboardScreen(adminRepository = adminRepository, onVoltar = { navController.popBackStack() })
+                    autorizado -> AdminDashboardScreen(
+                        adminRepository = adminRepository,
+                        onVoltar = { navController.popBackStack() },
+                        onProdutosClick = { navController.navigate(Tela.AdminProdutos.rota) },
+                        onCategoriasClick = { navController.navigate(Tela.AdminCategorias.rota) },
+                        onMarcasClick = { navController.navigate(Tela.AdminMarcas.rota) },
+                        onEstoqueClick = { navController.navigate(Tela.AdminEstoque.rota) }
+                    )
                     else -> EmptyState(
                         titulo = "Acesso negado",
                         subtitulo = "Você não tem permissão para acessar o painel administrativo.",
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+            }
+
+            composable(Tela.AdminProdutos.rota) {
+                AdminProdutosScreen(
+                    adminViewModel = adminViewModel,
+                    onVoltar = { navController.popBackStack() },
+                    onNovoProdutoClick = { navController.navigate(Tela.AdminProdutoForm.criarRota("novo")) },
+                    onEditarProdutoClick = { produto ->
+                        navController.navigate(Tela.AdminProdutoForm.criarRota(produto.id))
+                    }
+                )
+            }
+
+            composable(
+                route = Tela.AdminProdutoForm.rota,
+                arguments = listOf(navArgument("produtoId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val produtoId = backStackEntry.arguments?.getString("produtoId") ?: "novo"
+                val produtoExistente = if (produtoId == "novo") null else adminViewModel.produtoPorId(produtoId)
+
+                AdminProdutoFormScreen(
+                    adminViewModel = adminViewModel,
+                    produtoExistente = produtoExistente,
+                    onVoltar = { navController.popBackStack() }
+                )
+            }
+
+            composable(Tela.AdminCategorias.rota) {
+                val categorias by adminViewModel.categorias.collectAsState()
+                val carregando by adminViewModel.carregandoCategoriasMarcas.collectAsState()
+                AdminCategoriasMarcasScreen(
+                    titulo = "Categorias",
+                    itens = categorias.map { ItemNomeado(it.id, it.nome) },
+                    carregando = carregando,
+                    onVoltar = { navController.popBackStack() },
+                    onRecarregar = { adminViewModel.carregarCategorias() },
+                    onSalvar = { id, nome -> adminViewModel.salvarCategoria(id, nome) }
+                )
+            }
+
+            composable(Tela.AdminMarcas.rota) {
+                val marcas by adminViewModel.marcas.collectAsState()
+                val carregando by adminViewModel.carregandoCategoriasMarcas.collectAsState()
+                AdminCategoriasMarcasScreen(
+                    titulo = "Editoras",
+                    itens = marcas.map { ItemNomeado(it.id, it.nome) },
+                    carregando = carregando,
+                    onVoltar = { navController.popBackStack() },
+                    onRecarregar = { adminViewModel.carregarMarcas() },
+                    onSalvar = { id, nome -> adminViewModel.salvarMarca(id, nome) }
+                )
+            }
+
+            composable(Tela.AdminEstoque.rota) {
+                AdminEstoqueScreen(
+                    adminViewModel = adminViewModel,
+                    onVoltar = { navController.popBackStack() }
+                )
             }
 
             composable(Tela.Busca.rota) {

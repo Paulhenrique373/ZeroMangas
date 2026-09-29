@@ -6,6 +6,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Resumo de números da loja pro Dashboard administrativo, retornado pela RPC
@@ -29,6 +30,58 @@ private data class DashboardResumoParamsDto(
     @SerialName("p_dias") val dias: Int
 )
 
+@Serializable
+private data class CriarProdutoParamsDto(
+    @SerialName("p_nome") val nome: String,
+    @SerialName("p_marca_id") val marcaId: String,
+    @SerialName("p_categoria_id") val categoriaId: String,
+    @SerialName("p_volume") val volume: Int,
+    @SerialName("p_preco") val preco: Double,
+    @SerialName("p_imagem_url") val imagemUrl: String,
+    @SerialName("p_descricao") val descricao: String,
+    @SerialName("p_estoque") val estoque: Int,
+    @SerialName("p_autor") val autor: String,
+    @SerialName("p_em_destaque") val emDestaque: Boolean
+)
+
+@Serializable
+private data class AtualizarProdutoParamsDto(
+    @SerialName("p_id_produto") val idProduto: String,
+    @SerialName("p_nome") val nome: String,
+    @SerialName("p_marca_id") val marcaId: String,
+    @SerialName("p_categoria_id") val categoriaId: String,
+    @SerialName("p_volume") val volume: Int,
+    @SerialName("p_preco") val preco: Double,
+    @SerialName("p_imagem_url") val imagemUrl: String,
+    @SerialName("p_descricao") val descricao: String,
+    @SerialName("p_estoque") val estoque: Int,
+    @SerialName("p_autor") val autor: String,
+    @SerialName("p_em_destaque") val emDestaque: Boolean
+)
+
+@Serializable
+private data class AlternarAtivoProdutoParamsDto(
+    @SerialName("p_id_produto") val idProduto: String,
+    @SerialName("p_ativo") val ativo: Boolean
+)
+
+@Serializable
+private data class NomeParamsDto(
+    @SerialName("p_nome") val nome: String
+)
+
+@Serializable
+private data class AtualizarNomeParamsDto(
+    @SerialName("p_id") val id: String,
+    @SerialName("p_nome") val nome: String
+)
+
+@Serializable
+private data class AjustarEstoqueParamsDto(
+    @SerialName("p_id_produto") val idProduto: String,
+    @SerialName("p_estoque") val estoque: Int
+)
+
 private val jsonRpc = Json { encodeDefaults = true }
 
 /**
@@ -37,7 +90,9 @@ private val jsonRpc = Json { encodeDefaults = true }
  * que olha o auth.uid() da sessão atual) — nunca um valor local guardado no app.
  * Qualquer tela/rota administrativa deve confirmar por aqui antes de mostrar dados
  * ou ações sensíveis; a proteção de verdade continua sendo o RLS do banco, isso
- * aqui só decide o que a interface mostra.
+ * aqui só decide o que a interface mostra. Toda escrita administrativa passa por
+ * RPC "security definer" que reconfirma sou_admin() no banco antes de qualquer
+ * alteração — nunca por UPDATE/INSERT direto na tabela pelo cliente.
  */
 class AdminRepository {
 
@@ -71,6 +126,146 @@ class AdminRepository {
             Result.success(resultado)
         } catch (e: Exception) {
             Result.failure(Exception(e.message ?: "Não foi possível carregar o dashboard.", e))
+        }
+    }
+
+    /** Cria um produto novo (RPC "admin_criar_produto") e retorna o id gerado. */
+    suspend fun criarProduto(
+        nome: String,
+        marcaId: String,
+        categoriaId: String,
+        volume: Int,
+        preco: Double,
+        imagemUrl: String,
+        descricao: String,
+        estoque: Int,
+        autor: String,
+        emDestaque: Boolean
+    ): Result<String> {
+        return try {
+            val params = jsonRpc.encodeToJsonElement(
+                CriarProdutoParamsDto.serializer(),
+                CriarProdutoParamsDto(
+                    nome = nome,
+                    marcaId = marcaId,
+                    categoriaId = categoriaId,
+                    volume = volume,
+                    preco = preco,
+                    imagemUrl = imagemUrl,
+                    descricao = descricao,
+                    estoque = estoque,
+                    autor = autor,
+                    emDestaque = emDestaque
+                )
+            ).jsonObject
+
+            val resultado = SupabaseClient.client.postgrest.rpc("admin_criar_produto", params)
+            val idProduto = jsonRpc.parseToJsonElement(resultado.data).jsonPrimitive.content
+            Result.success(idProduto)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível criar o produto.", e))
+        }
+    }
+
+    /** Atualiza os dados cadastrais de um produto existente (RPC "admin_atualizar_produto"). */
+    suspend fun atualizarProduto(
+        idProduto: String,
+        nome: String,
+        marcaId: String,
+        categoriaId: String,
+        volume: Int,
+        preco: Double,
+        imagemUrl: String,
+        descricao: String,
+        estoque: Int,
+        autor: String,
+        emDestaque: Boolean
+    ): Result<Unit> {
+        return try {
+            val params = jsonRpc.encodeToJsonElement(
+                AtualizarProdutoParamsDto.serializer(),
+                AtualizarProdutoParamsDto(
+                    idProduto = idProduto,
+                    nome = nome,
+                    marcaId = marcaId,
+                    categoriaId = categoriaId,
+                    volume = volume,
+                    preco = preco,
+                    imagemUrl = imagemUrl,
+                    descricao = descricao,
+                    estoque = estoque,
+                    autor = autor,
+                    emDestaque = emDestaque
+                )
+            ).jsonObject
+
+            SupabaseClient.client.postgrest.rpc("admin_atualizar_produto", params)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível atualizar o produto.", e))
+        }
+    }
+
+    /** Ativa ou desativa um produto (RPC "admin_alternar_ativo_produto") — não remove do banco. */
+    suspend fun alternarAtivoProduto(idProduto: String, ativo: Boolean): Result<Unit> {
+        return try {
+            val params = jsonRpc.encodeToJsonElement(
+                AlternarAtivoProdutoParamsDto.serializer(),
+                AlternarAtivoProdutoParamsDto(idProduto = idProduto, ativo = ativo)
+            ).jsonObject
+
+            SupabaseClient.client.postgrest.rpc("admin_alternar_ativo_produto", params)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível alterar o status do produto.", e))
+        }
+    }
+
+    suspend fun criarCategoria(nome: String): Result<String> = criarComNome("admin_criar_categoria", nome, "categoria")
+
+    suspend fun atualizarCategoria(id: String, nome: String): Result<Unit> =
+        atualizarComNome("admin_atualizar_categoria", id, nome, "categoria")
+
+    suspend fun criarMarca(nome: String): Result<String> = criarComNome("admin_criar_marca", nome, "editora")
+
+    suspend fun atualizarMarca(id: String, nome: String): Result<Unit> =
+        atualizarComNome("admin_atualizar_marca", id, nome, "editora")
+
+    private suspend fun criarComNome(rpc: String, nome: String, rotulo: String): Result<String> {
+        return try {
+            val params = jsonRpc.encodeToJsonElement(NomeParamsDto.serializer(), NomeParamsDto(nome)).jsonObject
+            val resultado = SupabaseClient.client.postgrest.rpc(rpc, params)
+            val id = jsonRpc.parseToJsonElement(resultado.data).jsonPrimitive.content
+            Result.success(id)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível criar a $rotulo.", e))
+        }
+    }
+
+    private suspend fun atualizarComNome(rpc: String, id: String, nome: String, rotulo: String): Result<Unit> {
+        return try {
+            val params = jsonRpc.encodeToJsonElement(
+                AtualizarNomeParamsDto.serializer(),
+                AtualizarNomeParamsDto(id = id, nome = nome)
+            ).jsonObject
+            SupabaseClient.client.postgrest.rpc(rpc, params)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível atualizar a $rotulo.", e))
+        }
+    }
+
+    /** Ajuste rápido de estoque (RPC "admin_ajustar_estoque"), usado na tela de Estoque. */
+    suspend fun ajustarEstoque(idProduto: String, estoque: Int): Result<Unit> {
+        return try {
+            val params = jsonRpc.encodeToJsonElement(
+                AjustarEstoqueParamsDto.serializer(),
+                AjustarEstoqueParamsDto(idProduto = idProduto, estoque = estoque)
+            ).jsonObject
+            SupabaseClient.client.postgrest.rpc("admin_ajustar_estoque", params)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível ajustar o estoque.", e))
         }
     }
 }
