@@ -175,7 +175,7 @@ fun PedidosScreen(
 private fun calcularStatusPedido(status: String): String {
     return when (status.uppercase()) {
         "CANCELADO" -> "Cancelado"
-        "PREPARANDO", "PROCESSANDO" -> "Preparando"
+        "PREPARANDO", "PROCESSANDO", "EM_PREPARACAO" -> "Preparando"
         "ENVIADO", "EM_TRANSITO", "EM TRÂNSITO" -> "Enviado"
         "ENTREGUE", "CONCLUIDO", "CONCLUÍDO" -> "Entregue"
         else -> "Pedido confirmado"
@@ -190,7 +190,7 @@ fun PedidoCard(
 ) {
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
     val statusAtual = remember(pedido.status) { calcularStatusPedido(pedido.status) }
-    val podeCancelar = pedido.status.uppercase() in setOf("PAGAMENTO_APROVADO", "PROCESSANDO", "PREPARANDO")
+    val podeCancelar = pedido.status.uppercase() in setOf("PAGAMENTO_APROVADO", "PROCESSANDO", "PREPARANDO", "EM_PREPARACAO")
     val primeiroItem = pedido.itens.firstOrNull()
     val itensRestantes = pedido.itens.size - 1
 

@@ -25,6 +25,18 @@ data class DashboardResumoDto(
     @SerialName("produtos_esgotados") val produtosEsgotados: Long = 0
 )
 
+/**
+ * Números "de agora" do Dashboard (RPC "admin_dashboard_extras"): não dependem do
+ * período selecionado.
+ */
+@Serializable
+data class DashboardExtrasDto(
+    @SerialName("total_clientes") val totalClientes: Long = 0,
+    @SerialName("total_produtos") val totalProdutos: Long = 0,
+    @SerialName("pedidos_pendentes") val pedidosPendentes: Long = 0,
+    @SerialName("pedidos_em_preparacao") val pedidosEmPreparacao: Long = 0
+)
+
 @Serializable
 private data class DashboardResumoParamsDto(
     @SerialName("p_dias") val dias: Int
@@ -126,6 +138,18 @@ class AdminRepository {
             Result.success(resultado)
         } catch (e: Exception) {
             Result.failure(Exception(e.message ?: "Não foi possível carregar o dashboard.", e))
+        }
+    }
+
+    /** Totais e pendências atuais da loja (RPC "admin_dashboard_extras"). */
+    suspend fun buscarExtrasDashboard(): Result<DashboardExtrasDto> {
+        return try {
+            val resultado = SupabaseClient.client.postgrest
+                .rpc("admin_dashboard_extras")
+                .decodeSingle<DashboardExtrasDto>()
+            Result.success(resultado)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "Não foi possível carregar os totais.", e))
         }
     }
 

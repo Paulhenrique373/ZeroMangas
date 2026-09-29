@@ -4,14 +4,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.zeromangas.repository.AdminRepository
+import com.example.zeromangas.repository.DashboardExtrasDto
 import com.example.zeromangas.repository.DashboardResumoDto
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.LoadingState
@@ -37,11 +42,15 @@ import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.ui.theme.VerdeSucesso
 import com.example.zeromangas.ui.theme.VermelhoErro
+import java.util.Calendar
 
 private data class OpcaoPeriodo(val label: String, val dias: Int)
 
 private val opcoesPeriodo = listOf(
+    OpcaoPeriodo("Hoje", 1),
     OpcaoPeriodo("7 dias", 7),
+    // "Este mês" = do dia 1 até hoje, expresso em dias pra reaproveitar a RPC existente.
+    OpcaoPeriodo("Este mês", Calendar.getInstance().get(Calendar.DAY_OF_MONTH)),
     OpcaoPeriodo("30 dias", 30),
     OpcaoPeriodo("90 dias", 90),
     OpcaoPeriodo("1 ano", 365)
@@ -60,12 +69,22 @@ fun AdminDashboardScreen(
     onProdutosClick: () -> Unit = {},
     onCategoriasClick: () -> Unit = {},
     onMarcasClick: () -> Unit = {},
-    onEstoqueClick: () -> Unit = {}
+    onEstoqueClick: () -> Unit = {},
+    onPedidosClick: () -> Unit = {},
+    onClientesClick: () -> Unit = {},
+    onCuponsClick: () -> Unit = {}
 ) {
-    var periodoSelecionado by remember { mutableStateOf(opcoesPeriodo[1]) } // padrão: 30 dias
+    var periodoSelecionado by remember { mutableStateOf(opcoesPeriodo[3]) } // padrão: 30 dias
     var carregando by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
     var resumo by remember { mutableStateOf<DashboardResumoDto?>(null) }
+    var extras by remember { mutableStateOf<DashboardExtrasDto?>(null) }
+
+    // Totais/pendências atuais: não dependem do período. Se falharem, o Dashboard
+    // segue funcionando só com os cards do período.
+    LaunchedEffect(Unit) {
+        adminRepository.buscarExtrasDashboard().onSuccess { extras = it }
+    }
 
     LaunchedEffect(periodoSelecionado) {
         carregando = true
@@ -121,6 +140,9 @@ fun AdminDashboardScreen(
             AtalhoCard("Categorias", Icons.AutoMirrored.Filled.List, onCategoriasClick)
             AtalhoCard("Editoras", Icons.Default.Sell, onMarcasClick)
             AtalhoCard("Estoque", Icons.Default.Warehouse, onEstoqueClick)
+            AtalhoCard("Pedidos", Icons.Default.ShoppingBag, onPedidosClick)
+            AtalhoCard("Clientes", Icons.Default.People, onClientesClick)
+            AtalhoCard("Cupons", Icons.Default.ConfirmationNumber, onCuponsClick)
         }
 
         Spacer(Modifier.height(Spacing.md))
@@ -132,22 +154,48 @@ fun AdminDashboardScreen(
                 subtitulo = erro,
                 modifier = Modifier.weight(1f)
             )
-            resumo != null -> DashboardConteudo(resumo!!, modifier = Modifier.weight(1f))
+            resumo != null -> DashboardConteudo(resumo!!, extras, modifier = Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun DashboardConteudo(resumo: DashboardResumoDto, modifier: Modifier = Modifier) {
-    val cards = listOf(
-        CardMetrica("Faturamento", formatarPrecoBr(resumo.faturamentoTotal), VerdeSucesso),
-        CardMetrica("Pedidos", resumo.totalPedidos.toString(), RoxoNeon),
-        CardMetrica("Ticket médio", formatarPrecoBr(resumo.ticketMedio), RoxoNeon),
-        CardMetrica("Novos clientes", resumo.novosClientes.toString(), RoxoNeon),
-        CardMetrica("Cancelados", resumo.pedidosCancelados.toString(), VermelhoErro),
-        CardMetrica("Estoque baixo", resumo.produtosEstoqueBaixo.toString(), AmareloDestaque),
-        CardMetrica("Esgotados", resumo.produtosEsgotados.toString(), VermelhoErro)
-    )
+private fun DashboardConteudo(
+    resumo: DashboardResumoDto,
+    extras: DashboardExtrasDto?,
+    modifier: Modifier = Modifier
+) {
+    val alertas = buildList {
+        if (extras != null && extras.pedidosPendentes > 0) {
+            add("⚠️ " + contagem(extras.pedidosPendentes, "pedido aguarda", "pedidos aguardam") + " pagamento.")
+        }
+        if (extras != null && extras.pedidosEmPreparacao > 0) {
+            add("⚠️ " + contagem(extras.pedidosEmPreparacao, "pedido precisa ser enviado.", "pedidos precisam ser enviados."))
+        }
+        if (resumo.produtosEstoqueBaixo > 0) {
+            add("⚠️ " + contagem(resumo.produtosEstoqueBaixo, "produto está", "produtos estão") + " com estoque baixo.")
+        }
+        if (resumo.produtosEsgotados > 0) {
+            add("🔴 " + contagem(resumo.produtosEsgotados, "produto está", "produtos estão") + " sem estoque.")
+        }
+    }
+
+    val cards = buildList {
+        add(CardMetrica("Faturamento", formatarPrecoBr(resumo.faturamentoTotal), VerdeSucesso))
+        add(CardMetrica("Pedidos", resumo.totalPedidos.toString(), RoxoNeon))
+        add(CardMetrica("Ticket médio", formatarPrecoBr(resumo.ticketMedio), RoxoNeon))
+        add(CardMetrica("Novos clientes", resumo.novosClientes.toString(), RoxoNeon))
+        add(CardMetrica("Cancelados", resumo.pedidosCancelados.toString(), VermelhoErro))
+        add(CardMetrica("Estoque baixo", resumo.produtosEstoqueBaixo.toString(), AmareloDestaque))
+        add(CardMetrica("Esgotados", resumo.produtosEsgotados.toString(), VermelhoErro))
+        if (extras != null) {
+            add(CardMetrica("Clientes", extras.totalClientes.toString(), RoxoNeon))
+            add(CardMetrica("Produtos", extras.totalProdutos.toString(), RoxoNeon))
+            add(CardMetrica("Aguardando pagamento", extras.pedidosPendentes.toString(), AmareloDestaque))
+            add(CardMetrica("Em preparação", extras.pedidosEmPreparacao.toString(), RoxoNeon))
+        }
+    }
+    val semDadosNoPeriodo = resumo.totalPedidos == 0L
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -156,9 +204,41 @@ private fun DashboardConteudo(resumo: DashboardResumoDto, modifier: Modifier = M
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         modifier = modifier.fillMaxWidth()
     ) {
+        if (alertas.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Surface(
+                    color = FundoCard,
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        Text("Alertas", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                        alertas.forEach { alerta ->
+                            Text(alerta, style = MaterialTheme.typography.bodyMedium, color = TextoPrincipal)
+                        }
+                    }
+                }
+            }
+        }
+        if (semDadosNoPeriodo) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    "Nenhum dado disponível para o período selecionado.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextoSecundario
+                )
+            }
+        }
         items(cards) { card -> CardMetricaItem(card) }
     }
 }
+
+/** "1 pedido aguarda" / "3 pedidos aguardam". */
+private fun contagem(n: Long, singular: String, plural: String): String =
+    if (n == 1L) "$n $singular" else "$n $plural"
 
 private data class CardMetrica(val titulo: String, val valor: String, val cor: Color)
 

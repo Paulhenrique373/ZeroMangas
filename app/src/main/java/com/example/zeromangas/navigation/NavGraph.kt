@@ -38,10 +38,16 @@ import com.example.zeromangas.repository.AuthRepository
 import com.example.zeromangas.repository.MangaRepository
 import com.example.zeromangas.ui.theme.admin.AdminCategoriasMarcasScreen
 import com.example.zeromangas.ui.theme.admin.AdminDashboardScreen
+import com.example.zeromangas.ui.theme.admin.AdminClientesScreen
+import com.example.zeromangas.ui.theme.admin.AdminCuponsScreen
 import com.example.zeromangas.ui.theme.admin.AdminEstoqueScreen
+import com.example.zeromangas.ui.theme.admin.AdminPedidosScreen
 import com.example.zeromangas.ui.theme.admin.AdminProdutoFormScreen
 import com.example.zeromangas.ui.theme.admin.AdminProdutosScreen
 import com.example.zeromangas.ui.theme.admin.ItemNomeado
+import com.example.zeromangas.viewmodel.AdminClientesViewModel
+import com.example.zeromangas.viewmodel.AdminCuponsViewModel
+import com.example.zeromangas.viewmodel.AdminPedidosViewModel
 import com.example.zeromangas.viewmodel.AdminViewModel
 import com.example.zeromangas.ui.theme.busca.BuscaScreen
 import com.example.zeromangas.ui.components.AbaPrincipal
@@ -89,6 +95,9 @@ sealed class Tela(val rota: String) {
     object AdminCategorias : Tela("admin_categorias")
     object AdminMarcas : Tela("admin_marcas")
     object AdminEstoque : Tela("admin_estoque")
+    object AdminPedidos : Tela("admin_pedidos")
+    object AdminClientes : Tela("admin_clientes")
+    object AdminCupons : Tela("admin_cupons")
     object Detalhes : Tela("detalhes/{mangaId}") {
         fun criarRota(mangaId: String) = "detalhes/$mangaId"
     }
@@ -109,6 +118,9 @@ fun NavGraph() {
     val homeViewModel: HomeViewModel = viewModel()
     val notificacaoViewModel: NotificacaoViewModel = viewModel()
     val adminViewModel: AdminViewModel = viewModel()
+    val adminPedidosViewModel: AdminPedidosViewModel = viewModel()
+    val adminClientesViewModel: AdminClientesViewModel = viewModel()
+    val adminCuponsViewModel: AdminCuponsViewModel = viewModel()
 
     // Rotas em que a navegação inferior deve aparecer.
     val rotasComBottomBar = setOf(
@@ -568,7 +580,10 @@ fun NavGraph() {
                         onProdutosClick = { navController.navigate(Tela.AdminProdutos.rota) },
                         onCategoriasClick = { navController.navigate(Tela.AdminCategorias.rota) },
                         onMarcasClick = { navController.navigate(Tela.AdminMarcas.rota) },
-                        onEstoqueClick = { navController.navigate(Tela.AdminEstoque.rota) }
+                        onEstoqueClick = { navController.navigate(Tela.AdminEstoque.rota) },
+                        onPedidosClick = { navController.navigate(Tela.AdminPedidos.rota) },
+                        onClientesClick = { navController.navigate(Tela.AdminClientes.rota) },
+                        onCuponsClick = { navController.navigate(Tela.AdminCupons.rota) }
                     )
                     else -> EmptyState(
                         titulo = "Acesso negado",
@@ -632,6 +647,27 @@ fun NavGraph() {
             composable(Tela.AdminEstoque.rota) {
                 AdminEstoqueScreen(
                     adminViewModel = adminViewModel,
+                    onVoltar = { navController.popBackStack() }
+                )
+            }
+
+            composable(Tela.AdminPedidos.rota) {
+                AdminPedidosScreen(
+                    viewModel = adminPedidosViewModel,
+                    onVoltar = { navController.popBackStack() }
+                )
+            }
+
+            composable(Tela.AdminClientes.rota) {
+                AdminClientesScreen(
+                    viewModel = adminClientesViewModel,
+                    onVoltar = { navController.popBackStack() }
+                )
+            }
+
+            composable(Tela.AdminCupons.rota) {
+                AdminCuponsScreen(
+                    viewModel = adminCuponsViewModel,
                     onVoltar = { navController.popBackStack() }
                 )
             }
