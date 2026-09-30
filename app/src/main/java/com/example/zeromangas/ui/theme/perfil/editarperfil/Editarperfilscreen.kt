@@ -23,11 +23,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.SecondaryButton
+import com.example.zeromangas.ui.theme.BordaSutil
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.RoxoNeon
 import com.example.zeromangas.ui.theme.Spacing
@@ -39,6 +44,8 @@ import com.example.zeromangas.viewmodel.AuthViewModel
 import com.example.zeromangas.viewmodel.CredenciaisState
 import com.example.zeromangas.viewmodel.PerfilCompletoState
 import com.example.zeromangas.viewmodel.UploadFotoState
+import java.time.DateTimeException
+import java.time.LocalDate
 
 private val OPCOES_GENERO = listOf("Prefiro não informar", "Feminino", "Masculino", "Não-binário", "Outro")
 
@@ -64,12 +71,16 @@ fun EditarPerfilScreen(
     var nome by remember { mutableStateOf("") }
     var fotoUrl by remember { mutableStateOf("") }
     var fotoLocalPreview by remember { mutableStateOf<Uri?>(null) }
+    // Celular, CPF e data guardam SÓ os dígitos; a máscara (parênteses, pontos,
+    // barras) é aplicada visualmente por MascaraTransformation. Assim o cursor
+    // não pula e apagar/editar no meio do texto funciona normal.
     var telefone by remember { mutableStateOf("") }
     var cpf by remember { mutableStateOf("") }
     var bio by remember { mutableStateOf("") }
     var genero by remember { mutableStateOf("") }
     var dataNascimento by remember { mutableStateOf("") }
     var jaCarregouCampos by remember { mutableStateOf(false) }
+    var tentouSalvar by remember { mutableStateOf(false) }
     var mostrarSeletorGenero by remember { mutableStateOf(false) }
     var mostrarDialogoEmail by remember { mutableStateOf(false) }
     var mostrarDialogoSenha by remember { mutableStateOf(false) }
@@ -92,11 +103,11 @@ fun EditarPerfilScreen(
         if (!jaCarregouCampos && usuario != null) {
             nome = usuario?.nome.orEmpty()
             fotoUrl = perfilCliente?.fotoUrl?.ifBlank { usuario?.fotoUrl.orEmpty() } ?: usuario?.fotoUrl.orEmpty()
-            telefone = perfilCliente?.telefone.orEmpty()
-            cpf = perfilCliente?.cpf.orEmpty()
+            telefone = perfilCliente?.telefone.orEmpty().somenteDigitos().take(11)
+            cpf = perfilCliente?.cpf.orEmpty().somenteDigitos().take(11)
             bio = perfilCliente?.bio.orEmpty()
             genero = perfilCliente?.genero.orEmpty()
-            dataNascimento = isoParaDataBr(perfilCliente?.dataNascimento.orEmpty())
+            dataNascimento = isoParaDataBr(perfilCliente?.dataNascimento.orEmpty()).somenteDigitos().take(8)
             jaCarregouCampos = true
         }
     }
@@ -112,6 +123,12 @@ fun EditarPerfilScreen(
         authViewModel.resetarPerfilCompletoState()
         authViewModel.resetarCredenciaisState()
     }
+
+    val msgErroTelefone = erroTelefone(telefone, tentouSalvar)
+    val msgErroCpf = erroCpf(cpf, tentouSalvar)
+    val msgErroData = erroData(dataNascimento, tentouSalvar)
+    val coresCampo = coresDoCampo()
+    val formaCampo = MaterialTheme.shapes.small
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -212,6 +229,10 @@ fun EditarPerfilScreen(
                     onValueChange = { nome = it },
                     label = { Text("Nome completo") },
                     singleLine = true,
+                    isError = tentouSalvar && nome.isBlank(),
+                    supportingText = if (tentouSalvar && nome.isBlank()) { { Text("O nome não pode ficar em branco") } } else null,
+                    shape = formaCampo,
+                    colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -223,6 +244,8 @@ fun EditarPerfilScreen(
                     supportingText = { Text("${bio.length}/160") },
                     minLines = 2,
                     maxLines = 4,
+                    shape = formaCampo,
+                    colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -234,9 +257,9 @@ fun EditarPerfilScreen(
                         readOnly = true,
                         label = { Text("Gênero (opcional)") },
                         trailingIcon = { Icon(Icons.Default.ExpandMore, contentDescription = null) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { mostrarSeletorGenero = true }
+                        shape = formaCampo,
+                        colors = coresCampo,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     // Camada transparente por cima pra capturar o clique
                     // (OutlinedTextField readOnly ainda intercepta o toque).
@@ -264,10 +287,16 @@ fun EditarPerfilScreen(
 
                 OutlinedTextField(
                     value = dataNascimento,
-                    onValueChange = { dataNascimento = formatarDataDigitada(it) },
-                    label = { Text("Data de nascimento (DD/MM/AAAA)") },
+                    onValueChange = { dataNascimento = it.somenteDigitos().take(8) },
+                    label = { Text("Data de nascimento") },
+                    placeholder = { Text("DD/MM/AAAA") },
                     singleLine = true,
+                    isError = msgErroData != null,
+                    supportingText = msgErroData?.let { msg -> { Text(msg) } },
+                    visualTransformation = MascaraTransformation(::formatarData),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = formaCampo,
+                    colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -277,20 +306,32 @@ fun EditarPerfilScreen(
             SecaoCard(titulo = "Contato e documento") {
                 OutlinedTextField(
                     value = telefone,
-                    onValueChange = { telefone = formatarTelefoneDigitado(it) },
+                    onValueChange = { telefone = it.somenteDigitos().take(11) },
                     label = { Text("Celular") },
+                    placeholder = { Text("(11) 99999-9999") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    isError = msgErroTelefone != null,
+                    supportingText = msgErroTelefone?.let { msg -> { Text(msg) } },
+                    visualTransformation = MascaraTransformation(::formatarTelefone),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = formaCampo,
+                    colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
                 OutlinedTextField(
                     value = cpf,
-                    onValueChange = { cpf = formatarCpfDigitado(it) },
+                    onValueChange = { cpf = it.somenteDigitos().take(11) },
                     label = { Text("CPF") },
+                    placeholder = { Text("000.000.000-00") },
                     singleLine = true,
+                    isError = msgErroCpf != null,
+                    supportingText = msgErroCpf?.let { msg -> { Text(msg) } },
+                    visualTransformation = MascaraTransformation(::formatarCpf),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = formaCampo,
+                    colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -312,15 +353,22 @@ fun EditarPerfilScreen(
             PrimaryButton(
                 text = "Salvar alterações",
                 onClick = {
-                    authViewModel.salvarPerfilCompleto(
-                        nome = nome,
-                        fotoUrl = fotoUrl,
-                        telefone = telefone,
-                        cpf = cpf,
-                        bio = bio,
-                        genero = genero,
-                        dataNascimento = dataParaIso(dataNascimento)
-                    )
+                    tentouSalvar = true
+                    val temErro = nome.isBlank() ||
+                            erroTelefone(telefone, true) != null ||
+                            erroCpf(cpf, true) != null ||
+                            erroData(dataNascimento, true) != null
+                    if (!temErro) {
+                        authViewModel.salvarPerfilCompleto(
+                            nome = nome.trim(),
+                            fotoUrl = fotoUrl,
+                            telefone = formatarTelefone(telefone),
+                            cpf = formatarCpf(cpf),
+                            bio = bio,
+                            genero = genero,
+                            dataNascimento = dataParaIso(dataNascimento)
+                        )
+                    }
                 },
                 enabled = perfilCompletoState !is PerfilCompletoState.Loading && uploadFotoState !is UploadFotoState.Loading,
                 loading = perfilCompletoState is PerfilCompletoState.Loading,
@@ -528,60 +576,147 @@ private fun DialogoTrocarSenha(
     )
 }
 
-// ---------- Formatação leve de campos (só cosmética, não bloqueia digitação) ----------
+// ---------- Máscaras, validação e conversões ----------
 
-private fun formatarTelefoneDigitado(entrada: String): String {
-    val digitos = entrada.filter { it.isDigit() }.take(11)
-    return buildString {
-        digitos.forEachIndexed { index, c ->
-            when (index) {
-                0 -> append("(").append(c)
-                1 -> append(c).append(") ")
-                7 -> append("-").append(c)
-                else -> append(c)
+private fun String.somenteDigitos(): String = filter { it.isDigit() }
+
+/**
+ * Aplica uma máscara só na exibição. O estado do campo continua sendo só
+ * dígitos; aqui a gente mapeia as posições do cursor entre o texto "cru" e o
+ * texto formatado, pra o cursor nunca ficar no lugar errado.
+ */
+private class MascaraTransformation(private val formatar: (String) -> String) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digitos = text.text
+        val formatado = formatar(digitos)
+        val mapeamento = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                if (offset >= digitos.length) return formatado.length
+                var contados = 0
+                for (i in formatado.indices) {
+                    if (formatado[i].isDigit()) {
+                        if (contados == offset) return i
+                        contados++
+                    }
+                }
+                return formatado.length
             }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                val ate = offset.coerceIn(0, formatado.length)
+                return formatado.take(ate).count { it.isDigit() }.coerceAtMost(digitos.length)
+            }
+        }
+        return TransformedText(AnnotatedString(formatado), mapeamento)
+    }
+}
+
+/** (11) 99999-9999 (celular) ou (11) 9999-9999 (fixo). */
+private fun formatarTelefone(d: String): String {
+    if (d.isEmpty()) return ""
+    val ddd = d.take(2)
+    val resto = d.drop(2)
+    if (resto.isEmpty()) return "($ddd"
+    val corte = if (resto.startsWith("9") || d.length > 10) 5 else 4
+    val parte1 = resto.take(corte)
+    val parte2 = resto.drop(corte)
+    return "($ddd) $parte1" + if (parte2.isNotEmpty()) "-$parte2" else ""
+}
+
+/** 000.000.000-00 */
+private fun formatarCpf(d: String): String = buildString {
+    d.forEachIndexed { i, c ->
+        when (i) {
+            3, 6 -> append('.').append(c)
+            9 -> append('-').append(c)
+            else -> append(c)
         }
     }
 }
 
-private fun formatarCpfDigitado(entrada: String): String {
-    val digitos = entrada.filter { it.isDigit() }.take(11)
-    return buildString {
-        digitos.forEachIndexed { index, c ->
-            when (index) {
-                3, 6 -> append(".").append(c)
-                9 -> append("-").append(c)
-                else -> append(c)
-            }
+/** DD/MM/AAAA */
+private fun formatarData(d: String): String = buildString {
+    d.forEachIndexed { i, c ->
+        when (i) {
+            2, 4 -> append('/').append(c)
+            else -> append(c)
         }
     }
 }
 
-private fun formatarDataDigitada(entrada: String): String {
-    val digitos = entrada.filter { it.isDigit() }.take(8)
-    return buildString {
-        digitos.forEachIndexed { index, c ->
-            when (index) {
-                2, 4 -> append("/").append(c)
-                else -> append(c)
-            }
-        }
+private fun erroTelefone(d: String, tentouSalvar: Boolean): String? {
+    if (d.isEmpty()) return null
+    val completo = d.length >= 10
+    if (!completo) return if (tentouSalvar) "Informe o DDD e o número completo" else null
+    val ddd = d.take(2).toIntOrNull() ?: return "Celular inválido"
+    if (ddd < 11) return "DDD inválido"
+    if (d.length == 11 && d[2] != '9') return "Celular deve começar com 9 depois do DDD"
+    return null
+}
+
+private fun erroCpf(d: String, tentouSalvar: Boolean): String? {
+    if (d.isEmpty()) return null
+    if (d.length < 11) return if (tentouSalvar) "O CPF tem 11 números" else null
+    return if (cpfValido(d)) null else "CPF inválido"
+}
+
+private fun erroData(d: String, tentouSalvar: Boolean): String? {
+    if (d.isEmpty()) return null
+    if (d.length < 8) return if (tentouSalvar) "Use o formato DD/MM/AAAA" else null
+    return if (dataValida(d)) null else "Data inválida"
+}
+
+private fun cpfValido(d: String): Boolean {
+    if (d.length != 11 || d.all { it == d[0] }) return false
+    fun digitoVerificador(base: String, pesoInicial: Int): Int {
+        val soma = base.mapIndexed { i, c -> (c - '0') * (pesoInicial - i) }.sum()
+        val resto = (soma * 10) % 11
+        return if (resto == 10) 0 else resto
+    }
+    return digitoVerificador(d.substring(0, 9), 10) == (d[9] - '0') &&
+            digitoVerificador(d.substring(0, 10), 11) == (d[10] - '0')
+}
+
+private fun dataValida(d: String): Boolean {
+    if (d.length != 8) return false
+    return try {
+        val data = LocalDate.of(d.substring(4, 8).toInt(), d.substring(2, 4).toInt(), d.substring(0, 2).toInt())
+        data.year >= 1900 && !data.isAfter(LocalDate.now())
+    } catch (_: DateTimeException) {
+        false
     }
 }
+
+/** Cores dos campos: borda roxa no foco, borda sutil em repouso, sem fundo próprio (usa o do card). */
+@Composable
+private fun coresDoCampo() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = TextoPrincipal,
+    unfocusedTextColor = TextoPrincipal,
+    focusedBorderColor = RoxoNeon,
+    unfocusedBorderColor = BordaSutil,
+    focusedLabelColor = RoxoNeon,
+    unfocusedLabelColor = TextoSecundario,
+    cursorColor = RoxoNeon,
+    focusedPlaceholderColor = TextoSecundario,
+    unfocusedPlaceholderColor = TextoSecundario,
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+    errorContainerColor = Color.Transparent,
+    errorBorderColor = VermelhoErro,
+    errorLabelColor = VermelhoErro,
+    errorSupportingTextColor = VermelhoErro
+)
 
 /** Converte "AAAA-MM-DD" (como vem do banco) pra "DD/MM/AAAA" (como o campo exibe). */
 private fun isoParaDataBr(dataIso: String): String {
-    val partes = dataIso.split("-")
+    val partes = dataIso.take(10).split("-")
     if (partes.size != 3) return ""
     val (ano, mes, dia) = partes
     return "$dia/$mes/$ano"
 }
 
-/** Converte "DD/MM/AAAA" (como digitado) pra "AAAA-MM-DD" (formato aceito pela coluna date do Postgres). */
-private fun dataParaIso(dataBr: String): String {
-    val partes = dataBr.split("/")
-    if (partes.size != 3 || partes.any { it.isBlank() }) return ""
-    val (dia, mes, ano) = partes
-    if (ano.length != 4) return ""
-    return "$ano-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}"
+/** Converte os 8 dígitos "DDMMAAAA" pra "AAAA-MM-DD" (formato da coluna date do Postgres). Vazio se incompleto. */
+private fun dataParaIso(digitos: String): String {
+    if (digitos.length != 8) return ""
+    return "${digitos.substring(4, 8)}-${digitos.substring(2, 4)}-${digitos.substring(0, 2)}"
 }

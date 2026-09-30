@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import com.example.zeromangas.data.model.Endereco
+import com.example.zeromangas.ui.components.LojaCard
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.formatarPrecoBr
 import com.example.zeromangas.ui.theme.Spacing
@@ -107,6 +108,8 @@ fun CheckoutScreen(
             when (etapa) {
                 EtapaCheckout.ENTREGA -> item {
                     CabecalhoEtapa("1. Entrega", "Escolha onde deseja receber seu pedido")
+                    LojaCard(legenda = "Seu pedido sai daqui")
+                    Spacer(Modifier.height(Spacing.md))
                     if (carregandoEnderecos && enderecosSalvos.isEmpty()) {
                         Box(Modifier.fillMaxWidth().padding(Spacing.xl), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)

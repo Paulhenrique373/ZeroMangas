@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +40,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.zeromangas.data.config.LojaConfig
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.RoxoNeon
 import com.example.zeromangas.ui.theme.Spacing
@@ -165,6 +167,13 @@ fun ProfileScreen(
         }
         PerfilSecao("Entrega") {
             ItemMenuPerfil(Icons.Default.LocationOn, "Meus endereços", "Gerencie onde receber seus pedidos", onEnderecosClick)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            ItemMenuPerfil(
+                Icons.Default.Storefront,
+                "Nossa loja",
+                "${LojaConfig.ENDERECO_LINHA_1} · ${LojaConfig.BAIRRO}",
+                { LojaConfig.abrirNoMapa(context) }
+            )
         }
         // Só aparece pra quem o banco confirma como admin (souAdmin vem de
         // AuthViewModel.verificarAdmin(), nunca de um valor fixo no app) — cliente
