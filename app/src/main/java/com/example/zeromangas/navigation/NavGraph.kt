@@ -3,6 +3,10 @@ package com.example.zeromangas.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -18,6 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import com.example.zeromangas.data.local.VistosRecentemente
 import com.example.zeromangas.ui.components.EmptyState
 import com.example.zeromangas.ui.components.LoadingState
 import com.example.zeromangas.ui.components.RequerLoginDialog
@@ -178,6 +187,28 @@ fun NavGraph() {
         }
     }
 
+    // Navega para uma aba da barra inferior. Usado tanto pelo toque no BottomNavBar
+    // quanto pelo deslizamento lateral, então as duas formas têm a mesma regra.
+    // Favoritos e Perfil dependem de uma conta: visitante vê o diálogo de login.
+    fun irParaAba(aba: AbaPrincipal) {
+        if (aba.rota == rotaAtual) return
+        val exigeConta = aba == AbaPrincipal.FAVORITOS || aba == AbaPrincipal.PERFIL
+        if (exigeConta && authRepository.currentUser == null) {
+            exigirLogin(aba.rota)
+        } else {
+            navController.navigate(aba.rota) {
+                popUpTo(Tela.Home.rota) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    // Deslizar pra esquerda = próxima aba; pra direita = aba anterior.
+    val limiteDeslizePx = with(LocalDensity.current) { 80.dp.toPx() }
+
     Scaffold(
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { dados ->
@@ -195,26 +226,7 @@ fun NavGraph() {
                 BottomNavBar(
                     rotaAtual = rotaAtual,
                     quantidadeNoCarrinho = quantidadeNoCarrinho,
-                    onAbaSelecionada = { aba ->
-                        if (aba.rota != rotaAtual) {
-                            // Item 7: Favoritos e Perfil dependem de uma conta (favoritos
-                            // vinculados ao usuário, dados pessoais, pedidos, endereços).
-                            // Barra o visitante ANTES de navegar, em vez de deixar a tela
-                            // abrir vazia/quebrada — Home, Busca e Carrinho continuam livres.
-                            val exigeConta = aba == AbaPrincipal.FAVORITOS || aba == AbaPrincipal.PERFIL
-                            if (exigeConta && authRepository.currentUser == null) {
-                                exigirLogin(aba.rota)
-                            } else {
-                                navController.navigate(aba.rota) {
-                                    popUpTo(Tela.Home.rota) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        }
-                    }
+                    onAbaSelecionada = { aba -> irParaAba(aba) }
                 )
             }
         }
@@ -240,450 +252,495 @@ fun NavGraph() {
             )
         }
 
-        NavHost(
-            navController = navController,
-            startDestination = Tela.Login.rota,
-            modifier = Modifier.padding(paddingInterno),
-            // ETAPA 11 (polimento): transição de fade suave entre TODAS as telas
-            // (padrão global do NavHost, nenhuma tela precisou ser alterada pra ganhar isso).
-            // Optou-se por fade em vez de slide direcional porque o mesmo NavHost também
-            // atende a troca de abas do BottomNavBar, onde um slide de "avançar/voltar"
-            // não faz sentido semântico.
-            enterTransition = { fadeIn(animationSpec = tween(220)) },
-            exitTransition = { fadeOut(animationSpec = tween(180)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(220)) },
-            popExitTransition = { fadeOut(animationSpec = tween(180)) }
-        ) {
-            composable(Tela.Login.rota) {
-                LoginScreen(
-                    authViewModel = authViewModel,
-                    onLoginSucesso = { navegarAposAutenticar() },
-                    onIrParaCadastro = {
-                        navController.navigate(Tela.Cadastro.rota)
-                    },
-                    onContinuarSemConta = {
-                        // Item 8: não cria conta nem sessão nenhuma no Supabase Auth.
-                        // Antes de entrar como visitante, garante (suspend, então
-                        // esperamos terminar) que nenhuma sessão antiga salva no
-                        // aparelho continua valendo — senão o app "reconheceria"
-                        // o visitante como o usuário anterior (e-mail antigo
-                        // aparecendo em qualquer tela que leia currentUser).
-                        rotaPendenteAposLogin = null
-                        escopoNav.launch {
-                            authRepository.encerrarSessaoResidual()
-                            navController.navigate(Tela.Home.rota) {
-                                popUpTo(Tela.Login.rota) { inclusive = true }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingInterno)
+                .pointerInput(rotaAtual) {
+                    // Só nas 5 telas da barra inferior. Listas horizontais (ex: LazyRow da Home)
+                    // consomem o próprio arrasto, então o deslize de aba só vale fora delas.
+                    if (rotaAtual !in rotasComBottomBar) return@pointerInput
+                    var arrastado = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { arrastado = 0f },
+                        onDragCancel = { arrastado = 0f },
+                        onDragEnd = {
+                            val indice = AbaPrincipal.entries.indexOfFirst { it.rota == rotaAtual }
+                            val destino = when {
+                                arrastado <= -limiteDeslizePx -> indice + 1
+                                arrastado >= limiteDeslizePx -> indice - 1
+                                else -> -1
                             }
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.Cadastro.rota) {
-                RegisterScreen(
-                    authViewModel = authViewModel,
-                    onCadastroSucesso = { navegarAposAutenticar() },
-                    onVoltarParaLogin = {
-                        navController.popBackStack()
-                    }
-                )
-            }
-
-            composable(Tela.Home.rota) {
-                HomeScreen(
-                    homeViewModel = homeViewModel,
-                    favoritoViewModel = favoritoViewModel,
-                    notificacaoViewModel = notificacaoViewModel,
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onMangaClick = { manga ->
-                        navController.navigate(Tela.Detalhes.criarRota(manga.id))
-                    },
-                    onNotificacoesClick = {
-                        // Notificações são vinculadas à conta (item 7).
-                        if (authRepository.currentUser == null) {
-                            exigirLogin(Tela.Notificacoes.rota)
-                        } else {
-                            navController.navigate(Tela.Notificacoes.rota)
-                        }
-                    },
-                    onRequerLogin = { exigirLogin(null) },
-                    quantidadeNoCarrinho = quantidadeNoCarrinho,
-                    onCarrinhoClick = {
-                        navController.navigate(Tela.Carrinho.rota) {
-                            popUpTo(Tela.Home.rota) {
-                                saveState = true
+                            if (indice >= 0 && destino in AbaPrincipal.entries.indices) {
+                                irParaAba(AbaPrincipal.entries[destino])
                             }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    onBuscaClick = {
-                        navController.navigate(Tela.Busca.rota) {
-                            popUpTo(Tela.Home.rota) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-            }
-
-            composable(
-                route = Tela.Detalhes.rota,
-                arguments = listOf(navArgument("mangaId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val mangaId = backStackEntry.arguments?.getString("mangaId") ?: ""
-
-                var manga by remember { mutableStateOf<Manga?>(null) }
-                var recomendados by remember { mutableStateOf<List<Manga>>(emptyList()) }
-                var carregando by remember { mutableStateOf(true) }
-                var erro by remember { mutableStateOf<String?>(null) }
-
-                LaunchedEffect(mangaId) {
-                    carregando = true
-                    erro = null
-                    val resultado = mangaRepository.buscarMangaComRecomendados(mangaId)
-                    resultado.fold(
-                        onSuccess = { (mangaEncontrado, recomendadosEncontrados) ->
-                            manga = mangaEncontrado
-                            recomendados = recomendadosEncontrados
+                            arrastado = 0f
                         },
-                        onFailure = {
-                            erro = "Não foi possível carregar o mangá."
+                        onHorizontalDrag = { _, quanto -> arrastado += quanto }
+                    )
+                }
+        ) {
+            NavHost(
+                navController = navController,
+                startDestination = Tela.Login.rota,
+                modifier = Modifier,
+                // Troca entre abas desliza na direção do gesto; o resto do app segue no fade.
+                enterTransition = {
+                    val de = AbaPrincipal.entries.indexOfFirst { it.rota == initialState.destination.route }
+                    val para = AbaPrincipal.entries.indexOfFirst { it.rota == targetState.destination.route }
+                    if (de >= 0 && para >= 0 && de != para) {
+                        slideInHorizontally(tween(260)) { largura -> if (para > de) largura else -largura } +
+                                fadeIn(animationSpec = tween(260))
+                    } else {
+                        fadeIn(animationSpec = tween(220))
+                    }
+                },
+                exitTransition = {
+                    val de = AbaPrincipal.entries.indexOfFirst { it.rota == initialState.destination.route }
+                    val para = AbaPrincipal.entries.indexOfFirst { it.rota == targetState.destination.route }
+                    if (de >= 0 && para >= 0 && de != para) {
+                        slideOutHorizontally(tween(260)) { largura -> if (para > de) -largura else largura } +
+                                fadeOut(animationSpec = tween(260))
+                    } else {
+                        fadeOut(animationSpec = tween(180))
+                    }
+                },
+                popEnterTransition = { fadeIn(animationSpec = tween(220)) },
+                popExitTransition = { fadeOut(animationSpec = tween(180)) }
+            ) {
+                composable(Tela.Login.rota) {
+                    LoginScreen(
+                        authViewModel = authViewModel,
+                        onLoginSucesso = { navegarAposAutenticar() },
+                        onIrParaCadastro = {
+                            navController.navigate(Tela.Cadastro.rota)
+                        },
+                        onContinuarSemConta = {
+                            // Item 8: não cria conta nem sessão nenhuma no Supabase Auth.
+                            // Antes de entrar como visitante, garante (suspend, então
+                            // esperamos terminar) que nenhuma sessão antiga salva no
+                            // aparelho continua valendo — senão o app "reconheceria"
+                            // o visitante como o usuário anterior (e-mail antigo
+                            // aparecendo em qualquer tela que leia currentUser).
+                            rotaPendenteAposLogin = null
+                            escopoNav.launch {
+                                authRepository.encerrarSessaoResidual()
+                                navController.navigate(Tela.Home.rota) {
+                                    popUpTo(Tela.Login.rota) { inclusive = true }
+                                }
+                            }
                         }
                     )
-                    carregando = false
                 }
 
-                when {
-                    carregando -> {
-                        LoadingState(modifier = Modifier.fillMaxSize())
+                composable(Tela.Cadastro.rota) {
+                    RegisterScreen(
+                        authViewModel = authViewModel,
+                        onCadastroSucesso = { navegarAposAutenticar() },
+                        onVoltarParaLogin = {
+                            navController.popBackStack()
+                        }
+                    )
+                }
+
+                composable(Tela.Home.rota) {
+                    HomeScreen(
+                        homeViewModel = homeViewModel,
+                        favoritoViewModel = favoritoViewModel,
+                        notificacaoViewModel = notificacaoViewModel,
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        onMangaClick = { manga ->
+                            navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                        },
+                        onNotificacoesClick = {
+                            // Notificações são vinculadas à conta (item 7).
+                            if (authRepository.currentUser == null) {
+                                exigirLogin(Tela.Notificacoes.rota)
+                            } else {
+                                navController.navigate(Tela.Notificacoes.rota)
+                            }
+                        },
+                        onRequerLogin = { exigirLogin(null) },
+                        quantidadeNoCarrinho = quantidadeNoCarrinho,
+                        onCarrinhoClick = {
+                            navController.navigate(Tela.Carrinho.rota) {
+                                popUpTo(Tela.Home.rota) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onBuscaClick = {
+                            navController.navigate(Tela.Busca.rota) {
+                                popUpTo(Tela.Home.rota) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
+
+                composable(
+                    route = Tela.Detalhes.rota,
+                    arguments = listOf(navArgument("mangaId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val mangaId = backStackEntry.arguments?.getString("mangaId") ?: ""
+
+                    val contextoDetalhes = LocalContext.current
+                    var manga by remember { mutableStateOf<Manga?>(null) }
+                    var recomendados by remember { mutableStateOf<List<Manga>>(emptyList()) }
+                    var carregando by remember { mutableStateOf(true) }
+                    var erro by remember { mutableStateOf<String?>(null) }
+
+                    LaunchedEffect(mangaId) {
+                        carregando = true
+                        erro = null
+                        val resultado = mangaRepository.buscarMangaComRecomendados(mangaId)
+                        resultado.fold(
+                            onSuccess = { (mangaEncontrado, recomendadosEncontrados) ->
+                                manga = mangaEncontrado
+                                mangaEncontrado?.let { VistosRecentemente.registrar(contextoDetalhes, it.id) }
+                                recomendados = recomendadosEncontrados
+                            },
+                            onFailure = {
+                                erro = "Não foi possível carregar o mangá."
+                            }
+                        )
+                        carregando = false
                     }
-                    erro != null -> {
-                        EmptyState(
-                            titulo = "Não foi possível carregar",
-                            subtitulo = erro,
+
+                    when {
+                        carregando -> {
+                            LoadingState(modifier = Modifier.fillMaxSize())
+                        }
+                        erro != null -> {
+                            EmptyState(
+                                titulo = "Não foi possível carregar",
+                                subtitulo = erro,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        else -> {
+                            val avaliacaoViewModel: AvaliacaoViewModel = viewModel()
+                            DetalhesScreen(
+                                manga = manga,
+                                recomendados = recomendados,
+                                favoritoViewModel = favoritoViewModel,
+                                usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                                onRequerLogin = { exigirLogin(null) },
+                                onVoltar = { navController.popBackStack() },
+                                onAdicionarAoCarrinho = { mangaSelecionado, quantidade ->
+                                    repeat(quantidade) { cartViewModel.adicionarItem(mangaSelecionado) }
+                                    navController.popBackStack()
+                                },
+                                onMangaClick = { mangaSelecionado ->
+                                    navController.navigate(Tela.Detalhes.criarRota(mangaSelecionado.id))
+                                },
+                                avaliacaoViewModel = avaliacaoViewModel
+                            )
+                        }
+                    }
+                }
+
+                composable(Tela.Carrinho.rota) {
+                    CartScreen(
+                        cartViewModel = cartViewModel,
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        onVoltar = { navController.popBackStack() },
+                        onIrParaCheckout = {
+                            // Regra principal (item 2/10): navegar não exige conta, comprar exige.
+                            // O carrinho em si não é mexido aqui — continua intacto no CartViewModel
+                            // enquanto o visitante entra/cadastra e volta pra cá (item 4).
+                            if (authRepository.currentUser == null) {
+                                exigirLogin(Tela.Checkout.rota)
+                            } else {
+                                navController.navigate(Tela.Checkout.rota)
+                            }
+                        },
+                        onExplorarClick = {
+                            // Mesmo padrão de troca de aba usado pelo BottomNavBar,
+                            // pra não empilhar telas duplicadas no back stack.
+                            navController.navigate(Tela.Home.rota) {
+                                popUpTo(Tela.Home.rota)
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable(Tela.Checkout.rota) {
+                    CheckoutScreen(
+                        cartViewModel = cartViewModel,
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        onVoltar = { navController.popBackStack() },
+                        onCompraFinalizada = { pedidoId ->
+                            navController.navigate(Tela.Confirmacao.criarRota(pedidoId)) {
+                                popUpTo(Tela.Home.rota)
+                            }
+                        }
+                    )
+                }
+
+                composable(
+                    route = Tela.Confirmacao.rota,
+                    arguments = listOf(navArgument("pedidoId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val pedidoId = backStackEntry.arguments?.getString("pedidoId") ?: ""
+
+                    ConfirmacaoScreen(
+                        pedidoId = pedidoId,
+                        onVoltarParaHome = {
+                            navController.navigate(Tela.Home.rota) {
+                                popUpTo(Tela.Home.rota) { inclusive = true }
+                            }
+                        },
+                        onVerPedidos = {
+                            navController.navigate(Tela.Pedidos.rota) {
+                                popUpTo(Tela.Home.rota)
+                            }
+                        }
+                    )
+                }
+
+                composable(Tela.Pedidos.rota) {
+                    PedidosScreen(
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        cartViewModel = cartViewModel,
+                        onIrParaCarrinho = { navController.navigate(Tela.Carrinho.rota) },
+                        onVoltar = { navController.popBackStack() },
+                        onExplorarClick = {
+                            navController.navigate(Tela.Home.rota) {
+                                popUpTo(Tela.Home.rota)
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable(Tela.Perfil.rota) {
+                    ProfileScreen(
+                        authViewModel = authViewModel,
+                        onVoltar = { navController.popBackStack() },
+                        onPedidosClick = { navController.navigate(Tela.Pedidos.rota) },
+                        onFavoritosClick = {
+                            navController.navigate(Tela.Favoritos.rota) {
+                                popUpTo(Tela.Home.rota)
+                                launchSingleTop = true
+                            }
+                        },
+                        onEditarPerfilClick = {
+                            navController.navigate(Tela.EditarPerfil.rota)
+                        },
+                        onEnderecosClick = {
+                            navController.navigate(Tela.Enderecos.rota)
+                        },
+                        onNotificacoesClick = {
+                            navController.navigate(Tela.Notificacoes.rota)
+                        },
+                        onCuponsClick = {
+                            navController.navigate(Tela.Carrinho.rota) {
+                                popUpTo(Tela.Home.rota)
+                                launchSingleTop = true
+                            }
+                        },
+                        onAdminClick = {
+                            navController.navigate(Tela.Admin.rota)
+                        },
+                        onLogoutClick = {
+                            authViewModel.logout()
+                            cartViewModel.limparCarrinho()
+                            favoritoViewModel.limparFavoritos()
+                            notificacaoViewModel.limpar()
+                            navController.navigate(Tela.Login.rota) {
+                                popUpTo(Tela.Home.rota) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
+                composable(Tela.EditarPerfil.rota) {
+                    EditarPerfilScreen(
+                        authViewModel = authViewModel,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Tela.Enderecos.rota) {
+                    val enderecoViewModel: EnderecoViewModel = viewModel()
+                    EnderecosScreen(
+                        enderecoViewModel = enderecoViewModel,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Tela.Favoritos.rota) {
+                    FavoritosScreen(
+                        favoritoViewModel = favoritoViewModel,
+                        cartViewModel = cartViewModel,
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        onVoltar = { navController.popBackStack() },
+                        onMangaClick = { manga ->
+                            navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                        },
+                        onExplorarClick = {
+                            navController.navigate(Tela.Home.rota) {
+                                popUpTo(Tela.Home.rota)
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable(Tela.Notificacoes.rota) {
+                    NotificacoesScreen(
+                        notificacaoViewModel = notificacaoViewModel,
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        onVoltar = { navController.popBackStack() },
+                        onNotificacaoClick = { notificacao ->
+                            // Leva pra origem da notificação quando existir: produto (promoção,
+                            // lançamento, favorito voltou ao estoque/entrou em promoção) ou
+                            // pedido (atualização de status). Notificação sem nenhum dos dois
+                            // (ex: aviso genérico) só marca como lida e fica na própria tela.
+                            val produtoId = notificacao.produtoId
+                            val pedidoId = notificacao.pedidoId
+                            when {
+                                produtoId != null -> navController.navigate(Tela.Detalhes.criarRota(produtoId))
+                                pedidoId != null -> navController.navigate(Tela.Pedidos.rota)
+                            }
+                        }
+                    )
+                }
+
+                composable(Tela.Admin.rota) {
+                    // Item 33 do pedido: proteção contra acesso direto. Mesmo que alguém
+                    // force a navegação pra "admin" (deep link, back stack manipulado etc),
+                    // essa tela sempre reconfirma no banco antes de mostrar qualquer coisa —
+                    // nunca reaproveita um estado do AuthViewModel só porque a navegação
+                    // partiu do botão do Perfil. Nenhum dado administrativo é carregado
+                    // antes dessa confirmação.
+                    var verificando by remember { mutableStateOf(true) }
+                    var autorizado by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(Unit) {
+                        verificando = true
+                        autorizado = adminRepository.souAdmin().getOrDefault(false)
+                        verificando = false
+                    }
+
+                    when {
+                        verificando -> LoadingState(modifier = Modifier.fillMaxSize())
+                        autorizado -> AdminDashboardScreen(
+                            adminRepository = adminRepository,
+                            onVoltar = { navController.popBackStack() },
+                            onProdutosClick = { navController.navigate(Tela.AdminProdutos.rota) },
+                            onCategoriasClick = { navController.navigate(Tela.AdminCategorias.rota) },
+                            onMarcasClick = { navController.navigate(Tela.AdminMarcas.rota) },
+                            onEstoqueClick = { navController.navigate(Tela.AdminEstoque.rota) },
+                            onPedidosClick = { navController.navigate(Tela.AdminPedidos.rota) },
+                            onClientesClick = { navController.navigate(Tela.AdminClientes.rota) },
+                            onCuponsClick = { navController.navigate(Tela.AdminCupons.rota) }
+                        )
+                        else -> EmptyState(
+                            titulo = "Acesso negado",
+                            subtitulo = "Você não tem permissão para acessar o painel administrativo.",
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    else -> {
-                        val avaliacaoViewModel: AvaliacaoViewModel = viewModel()
-                        DetalhesScreen(
-                            manga = manga,
-                            recomendados = recomendados,
-                            favoritoViewModel = favoritoViewModel,
-                            usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                            onRequerLogin = { exigirLogin(null) },
-                            onVoltar = { navController.popBackStack() },
-                            onAdicionarAoCarrinho = { mangaSelecionado, quantidade ->
-                                repeat(quantidade) { cartViewModel.adicionarItem(mangaSelecionado) }
-                                navController.popBackStack()
-                            },
-                            onMangaClick = { mangaSelecionado ->
-                                navController.navigate(Tela.Detalhes.criarRota(mangaSelecionado.id))
-                            },
-                            avaliacaoViewModel = avaliacaoViewModel
-                        )
-                    }
-                }
-            }
-
-            composable(Tela.Carrinho.rota) {
-                CartScreen(
-                    cartViewModel = cartViewModel,
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onVoltar = { navController.popBackStack() },
-                    onIrParaCheckout = {
-                        // Regra principal (item 2/10): navegar não exige conta, comprar exige.
-                        // O carrinho em si não é mexido aqui — continua intacto no CartViewModel
-                        // enquanto o visitante entra/cadastra e volta pra cá (item 4).
-                        if (authRepository.currentUser == null) {
-                            exigirLogin(Tela.Checkout.rota)
-                        } else {
-                            navController.navigate(Tela.Checkout.rota)
-                        }
-                    },
-                    onExplorarClick = {
-                        // Mesmo padrão de troca de aba usado pelo BottomNavBar,
-                        // pra não empilhar telas duplicadas no back stack.
-                        navController.navigate(Tela.Home.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.Checkout.rota) {
-                CheckoutScreen(
-                    cartViewModel = cartViewModel,
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onVoltar = { navController.popBackStack() },
-                    onCompraFinalizada = { pedidoId ->
-                        navController.navigate(Tela.Confirmacao.criarRota(pedidoId)) {
-                            popUpTo(Tela.Home.rota)
-                        }
-                    }
-                )
-            }
-
-            composable(
-                route = Tela.Confirmacao.rota,
-                arguments = listOf(navArgument("pedidoId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val pedidoId = backStackEntry.arguments?.getString("pedidoId") ?: ""
-
-                ConfirmacaoScreen(
-                    pedidoId = pedidoId,
-                    onVoltarParaHome = {
-                        navController.navigate(Tela.Home.rota) {
-                            popUpTo(Tela.Home.rota) { inclusive = true }
-                        }
-                    },
-                    onVerPedidos = {
-                        navController.navigate(Tela.Pedidos.rota) {
-                            popUpTo(Tela.Home.rota)
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.Pedidos.rota) {
-                PedidosScreen(
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    cartViewModel = cartViewModel,
-                    onIrParaCarrinho = { navController.navigate(Tela.Carrinho.rota) },
-                    onVoltar = { navController.popBackStack() },
-                    onExplorarClick = {
-                        navController.navigate(Tela.Home.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.Perfil.rota) {
-                ProfileScreen(
-                    authViewModel = authViewModel,
-                    onVoltar = { navController.popBackStack() },
-                    onPedidosClick = { navController.navigate(Tela.Pedidos.rota) },
-                    onFavoritosClick = {
-                        navController.navigate(Tela.Favoritos.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
-                        }
-                    },
-                    onEditarPerfilClick = {
-                        navController.navigate(Tela.EditarPerfil.rota)
-                    },
-                    onEnderecosClick = {
-                        navController.navigate(Tela.Enderecos.rota)
-                    },
-                    onNotificacoesClick = {
-                        navController.navigate(Tela.Notificacoes.rota)
-                    },
-                    onCuponsClick = {
-                        navController.navigate(Tela.Carrinho.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
-                        }
-                    },
-                    onAdminClick = {
-                        navController.navigate(Tela.Admin.rota)
-                    },
-                    onLogoutClick = {
-                        authViewModel.logout()
-                        cartViewModel.limparCarrinho()
-                        favoritoViewModel.limparFavoritos()
-                        notificacaoViewModel.limpar()
-                        navController.navigate(Tela.Login.rota) {
-                            popUpTo(Tela.Home.rota) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.EditarPerfil.rota) {
-                EditarPerfilScreen(
-                    authViewModel = authViewModel,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
-
-            composable(Tela.Enderecos.rota) {
-                val enderecoViewModel: EnderecoViewModel = viewModel()
-                EnderecosScreen(
-                    enderecoViewModel = enderecoViewModel,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
-
-            composable(Tela.Favoritos.rota) {
-                FavoritosScreen(
-                    favoritoViewModel = favoritoViewModel,
-                    cartViewModel = cartViewModel,
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onVoltar = { navController.popBackStack() },
-                    onMangaClick = { manga ->
-                        navController.navigate(Tela.Detalhes.criarRota(manga.id))
-                    },
-                    onExplorarClick = {
-                        navController.navigate(Tela.Home.rota) {
-                            popUpTo(Tela.Home.rota)
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.Notificacoes.rota) {
-                NotificacoesScreen(
-                    notificacaoViewModel = notificacaoViewModel,
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onVoltar = { navController.popBackStack() },
-                    onNotificacaoClick = { notificacao ->
-                        // Leva pra origem da notificação quando existir: produto (promoção,
-                        // lançamento, favorito voltou ao estoque/entrou em promoção) ou
-                        // pedido (atualização de status). Notificação sem nenhum dos dois
-                        // (ex: aviso genérico) só marca como lida e fica na própria tela.
-                        val produtoId = notificacao.produtoId
-                        val pedidoId = notificacao.pedidoId
-                        when {
-                            produtoId != null -> navController.navigate(Tela.Detalhes.criarRota(produtoId))
-                            pedidoId != null -> navController.navigate(Tela.Pedidos.rota)
-                        }
-                    }
-                )
-            }
-
-            composable(Tela.Admin.rota) {
-                // Item 33 do pedido: proteção contra acesso direto. Mesmo que alguém
-                // force a navegação pra "admin" (deep link, back stack manipulado etc),
-                // essa tela sempre reconfirma no banco antes de mostrar qualquer coisa —
-                // nunca reaproveita um estado do AuthViewModel só porque a navegação
-                // partiu do botão do Perfil. Nenhum dado administrativo é carregado
-                // antes dessa confirmação.
-                var verificando by remember { mutableStateOf(true) }
-                var autorizado by remember { mutableStateOf(false) }
-
-                LaunchedEffect(Unit) {
-                    verificando = true
-                    autorizado = adminRepository.souAdmin().getOrDefault(false)
-                    verificando = false
                 }
 
-                when {
-                    verificando -> LoadingState(modifier = Modifier.fillMaxSize())
-                    autorizado -> AdminDashboardScreen(
-                        adminRepository = adminRepository,
+                composable(Tela.AdminProdutos.rota) {
+                    AdminProdutosScreen(
+                        adminViewModel = adminViewModel,
                         onVoltar = { navController.popBackStack() },
-                        onProdutosClick = { navController.navigate(Tela.AdminProdutos.rota) },
-                        onCategoriasClick = { navController.navigate(Tela.AdminCategorias.rota) },
-                        onMarcasClick = { navController.navigate(Tela.AdminMarcas.rota) },
-                        onEstoqueClick = { navController.navigate(Tela.AdminEstoque.rota) },
-                        onPedidosClick = { navController.navigate(Tela.AdminPedidos.rota) },
-                        onClientesClick = { navController.navigate(Tela.AdminClientes.rota) },
-                        onCuponsClick = { navController.navigate(Tela.AdminCupons.rota) }
-                    )
-                    else -> EmptyState(
-                        titulo = "Acesso negado",
-                        subtitulo = "Você não tem permissão para acessar o painel administrativo.",
-                        modifier = Modifier.fillMaxSize()
+                        onNovoProdutoClick = { navController.navigate(Tela.AdminProdutoForm.criarRota("novo")) },
+                        onEditarProdutoClick = { produto ->
+                            navController.navigate(Tela.AdminProdutoForm.criarRota(produto.id))
+                        }
                     )
                 }
-            }
 
-            composable(Tela.AdminProdutos.rota) {
-                AdminProdutosScreen(
-                    adminViewModel = adminViewModel,
-                    onVoltar = { navController.popBackStack() },
-                    onNovoProdutoClick = { navController.navigate(Tela.AdminProdutoForm.criarRota("novo")) },
-                    onEditarProdutoClick = { produto ->
-                        navController.navigate(Tela.AdminProdutoForm.criarRota(produto.id))
-                    }
-                )
-            }
+                composable(
+                    route = Tela.AdminProdutoForm.rota,
+                    arguments = listOf(navArgument("produtoId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val produtoId = backStackEntry.arguments?.getString("produtoId") ?: "novo"
+                    val produtoExistente = if (produtoId == "novo") null else adminViewModel.produtoPorId(produtoId)
 
-            composable(
-                route = Tela.AdminProdutoForm.rota,
-                arguments = listOf(navArgument("produtoId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val produtoId = backStackEntry.arguments?.getString("produtoId") ?: "novo"
-                val produtoExistente = if (produtoId == "novo") null else adminViewModel.produtoPorId(produtoId)
+                    AdminProdutoFormScreen(
+                        adminViewModel = adminViewModel,
+                        produtoExistente = produtoExistente,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
 
-                AdminProdutoFormScreen(
-                    adminViewModel = adminViewModel,
-                    produtoExistente = produtoExistente,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
+                composable(Tela.AdminCategorias.rota) {
+                    val categorias by adminViewModel.categorias.collectAsState()
+                    val carregando by adminViewModel.carregandoCategoriasMarcas.collectAsState()
+                    AdminCategoriasMarcasScreen(
+                        titulo = "Categorias",
+                        itens = categorias.map { ItemNomeado(it.id, it.nome) },
+                        carregando = carregando,
+                        onVoltar = { navController.popBackStack() },
+                        onRecarregar = { adminViewModel.carregarCategorias() },
+                        onSalvar = { id, nome -> adminViewModel.salvarCategoria(id, nome) }
+                    )
+                }
 
-            composable(Tela.AdminCategorias.rota) {
-                val categorias by adminViewModel.categorias.collectAsState()
-                val carregando by adminViewModel.carregandoCategoriasMarcas.collectAsState()
-                AdminCategoriasMarcasScreen(
-                    titulo = "Categorias",
-                    itens = categorias.map { ItemNomeado(it.id, it.nome) },
-                    carregando = carregando,
-                    onVoltar = { navController.popBackStack() },
-                    onRecarregar = { adminViewModel.carregarCategorias() },
-                    onSalvar = { id, nome -> adminViewModel.salvarCategoria(id, nome) }
-                )
-            }
+                composable(Tela.AdminMarcas.rota) {
+                    val marcas by adminViewModel.marcas.collectAsState()
+                    val carregando by adminViewModel.carregandoCategoriasMarcas.collectAsState()
+                    AdminCategoriasMarcasScreen(
+                        titulo = "Editoras",
+                        itens = marcas.map { ItemNomeado(it.id, it.nome) },
+                        carregando = carregando,
+                        onVoltar = { navController.popBackStack() },
+                        onRecarregar = { adminViewModel.carregarMarcas() },
+                        onSalvar = { id, nome -> adminViewModel.salvarMarca(id, nome) }
+                    )
+                }
 
-            composable(Tela.AdminMarcas.rota) {
-                val marcas by adminViewModel.marcas.collectAsState()
-                val carregando by adminViewModel.carregandoCategoriasMarcas.collectAsState()
-                AdminCategoriasMarcasScreen(
-                    titulo = "Editoras",
-                    itens = marcas.map { ItemNomeado(it.id, it.nome) },
-                    carregando = carregando,
-                    onVoltar = { navController.popBackStack() },
-                    onRecarregar = { adminViewModel.carregarMarcas() },
-                    onSalvar = { id, nome -> adminViewModel.salvarMarca(id, nome) }
-                )
-            }
+                composable(Tela.AdminEstoque.rota) {
+                    AdminEstoqueScreen(
+                        adminViewModel = adminViewModel,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
 
-            composable(Tela.AdminEstoque.rota) {
-                AdminEstoqueScreen(
-                    adminViewModel = adminViewModel,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
+                composable(Tela.AdminPedidos.rota) {
+                    AdminPedidosScreen(
+                        viewModel = adminPedidosViewModel,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
 
-            composable(Tela.AdminPedidos.rota) {
-                AdminPedidosScreen(
-                    viewModel = adminPedidosViewModel,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
+                composable(Tela.AdminClientes.rota) {
+                    AdminClientesScreen(
+                        viewModel = adminClientesViewModel,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
 
-            composable(Tela.AdminClientes.rota) {
-                AdminClientesScreen(
-                    viewModel = adminClientesViewModel,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
+                composable(Tela.AdminCupons.rota) {
+                    AdminCuponsScreen(
+                        viewModel = adminCuponsViewModel,
+                        onVoltar = { navController.popBackStack() }
+                    )
+                }
 
-            composable(Tela.AdminCupons.rota) {
-                AdminCuponsScreen(
-                    viewModel = adminCuponsViewModel,
-                    onVoltar = { navController.popBackStack() }
-                )
-            }
-
-            composable(Tela.Busca.rota) {
-                BuscaScreen(
-                    buscaViewModel = homeViewModel,
-                    favoritoViewModel = favoritoViewModel,
-                    usuarioId = authRepository.currentUser?.uid.orEmpty(),
-                    onRequerLogin = { exigirLogin(null) },
-                    onMangaClick = { manga ->
-                        navController.navigate(Tela.Detalhes.criarRota(manga.id))
-                    }
-                )
+                composable(Tela.Busca.rota) {
+                    BuscaScreen(
+                        buscaViewModel = homeViewModel,
+                        favoritoViewModel = favoritoViewModel,
+                        usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                        onRequerLogin = { exigirLogin(null) },
+                        onMangaClick = { manga ->
+                            navController.navigate(Tela.Detalhes.criarRota(manga.id))
+                        }
+                    )
+                }
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.example.zeromangas.ui.theme.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,11 +23,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.zeromangas.R
+import com.example.zeromangas.data.local.VistosRecentemente
 import com.example.zeromangas.data.model.Manga
 import com.example.zeromangas.ui.components.CategoryChip
 import com.example.zeromangas.ui.components.EmptyState
@@ -66,6 +71,14 @@ fun HomeScreen(
     val categoriaSelecionada by homeViewModel.categoriaSelecionada.collectAsState()
     val favoritosIds by favoritoViewModel.favoritosIds.collectAsState()
     val quantidadeNotificacoesNaoLidas by notificacaoViewModel.quantidadeNaoLidas.collectAsState()
+    val catalogo by homeViewModel.catalogo.collectAsState()
+
+    // "Vistos recentemente": ids salvos no aparelho, resolvidos pelo catálogo carregado.
+    val contexto = LocalContext.current
+    val idsVistos = remember { VistosRecentemente.listar(contexto) }
+    val mangasVistos = remember(idsVistos, catalogo) {
+        idsVistos.mapNotNull { id -> catalogo.find { it.id == id } }
+    }
 
     // Favoritos são vinculados à conta (item 7): visitante (usuarioId em branco)
     // é direcionado pro fluxo de login/cadastro em vez de a chamada falhar em silêncio.
@@ -157,6 +170,28 @@ fun HomeScreen(
                     }
                 }
 
+                // Vistos recentemente (só aparece depois que o usuário abriu algum mangá)
+                if (mangasVistos.isNotEmpty()) {
+                    item {
+                        SectionHeader(titulo = "🕘 Vistos recentemente")
+                    }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.itemGap)
+                        ) {
+                            items(mangasVistos, key = { "visto_${it.id}" }) { manga ->
+                                MangaCardFavoritavel(
+                                    manga = manga,
+                                    isFavorito = manga.id in favoritosIds,
+                                    onClick = { onMangaClick(manga) },
+                                    onFavoritoClick = { aoFavoritar(manga) }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Mais vendidos: usa os mangás marcados como destaque
                 // (não há contagem real de vendas hoje)
                 if (mangasEmDestaque.isNotEmpty()) {
@@ -242,6 +277,15 @@ private fun HomeHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Image(
+            painter = painterResource(R.drawable.logo_zeromangas),
+            contentDescription = "ZeroMangas",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+        )
+        Spacer(modifier = Modifier.width(Spacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Olá! 👋",

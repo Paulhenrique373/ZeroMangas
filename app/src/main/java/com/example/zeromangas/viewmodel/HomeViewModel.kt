@@ -38,6 +38,8 @@ class HomeViewModel : ViewModel() {
     private val pesquisaRepository = PesquisaRepository()
 
     private val _todosMangas = MutableStateFlow<List<Manga>>(emptyList())
+    /** Catálogo completo já carregado (usado pra resolver "Vistos recentemente" na Home). */
+    val catalogo: StateFlow<List<Manga>> = _todosMangas.asStateFlow()
 
     private val _categorias = MutableStateFlow<List<String>>(emptyList())
     val categorias: StateFlow<List<String>> = _categorias.asStateFlow()

@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.zeromangas.repository.AdminPedidosRepository
 import com.example.zeromangas.repository.AdminRepository
 import com.example.zeromangas.repository.DashboardExtrasDto
 import com.example.zeromangas.repository.DashboardResumoDto
@@ -72,13 +73,16 @@ fun AdminDashboardScreen(
     onEstoqueClick: () -> Unit = {},
     onPedidosClick: () -> Unit = {},
     onClientesClick: () -> Unit = {},
-    onCuponsClick: () -> Unit = {}
+    onCuponsClick: () -> Unit = {},
+    pedidosRepository: AdminPedidosRepository = remember { AdminPedidosRepository() }
 ) {
     var periodoSelecionado by remember { mutableStateOf(opcoesPeriodo[3]) } // padrão: 30 dias
     var carregando by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
     var resumo by remember { mutableStateOf<DashboardResumoDto?>(null) }
     var extras by remember { mutableStateOf<DashboardExtrasDto?>(null) }
+    var relatorio by remember { mutableStateOf<RelatorioVendas?>(null) }
+    var carregandoRelatorio by remember { mutableStateOf(true) }
 
     // Totais/pendências atuais: não dependem do período. Se falharem, o Dashboard
     // segue funcionando só com os cards do período.
@@ -93,6 +97,15 @@ fun AdminDashboardScreen(
             .onSuccess { resumo = it }
             .onFailure { erro = it.message ?: "Não foi possível carregar o dashboard." }
         carregando = false
+    }
+
+    // Gráficos (vendas por dia + mais vendidos): falhar aqui não derruba o resto do Dashboard.
+    LaunchedEffect(periodoSelecionado) {
+        carregandoRelatorio = true
+        carregarRelatorioVendas(pedidosRepository, periodoSelecionado.dias)
+            .onSuccess { relatorio = it }
+            .onFailure { relatorio = null }
+        carregandoRelatorio = false
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -154,7 +167,7 @@ fun AdminDashboardScreen(
                 subtitulo = erro,
                 modifier = Modifier.weight(1f)
             )
-            resumo != null -> DashboardConteudo(resumo!!, extras, modifier = Modifier.weight(1f))
+            resumo != null -> DashboardConteudo(resumo!!, extras, relatorio, carregandoRelatorio, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -163,6 +176,8 @@ fun AdminDashboardScreen(
 private fun DashboardConteudo(
     resumo: DashboardResumoDto,
     extras: DashboardExtrasDto?,
+    relatorio: RelatorioVendas?,
+    carregandoRelatorio: Boolean,
     modifier: Modifier = Modifier
 ) {
     val alertas = buildList {
@@ -233,6 +248,9 @@ private fun DashboardConteudo(
             }
         }
         items(cards) { card -> CardMetricaItem(card) }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SecaoRelatorioVendas(relatorio, carregandoRelatorio)
+        }
     }
 }
 

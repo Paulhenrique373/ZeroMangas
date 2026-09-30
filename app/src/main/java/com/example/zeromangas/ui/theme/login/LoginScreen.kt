@@ -1,5 +1,6 @@
 package com.example.zeromangas.ui.theme.login
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,7 +9,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
@@ -19,7 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -27,6 +29,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.zeromangas.R
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.FundoPrincipal
@@ -157,13 +160,15 @@ private fun SeparadorOu() {
 
 @Composable
 internal fun LogoZeroMangas() {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Surface(color = RoxoNeon.copy(alpha = .16f), shape = RoundedCornerShape(Spacing.radiusLarge), modifier = Modifier.size(72.dp)) {
-            Icon(Icons.Default.AutoStories, null, tint = RoxoNeon, modifier = Modifier.padding(18.dp))
-        }
-        Spacer(Modifier.height(Spacing.sm))
-        Text("ZeroMangás", style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
-    }
+    // A logo já traz o nome "ZeroMangas" escrito, então não precisa de texto ao lado.
+    Image(
+        painter = painterResource(R.drawable.logo_zeromangas),
+        contentDescription = "ZeroMangas",
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .size(150.dp)
+            .clip(RoundedCornerShape(32.dp))
+    )
 }
 
 @Composable
