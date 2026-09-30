@@ -452,6 +452,8 @@ fun NavGraph() {
             composable(Tela.Pedidos.rota) {
                 PedidosScreen(
                     usuarioId = authRepository.currentUser?.uid.orEmpty(),
+                    cartViewModel = cartViewModel,
+                    onIrParaCarrinho = { navController.navigate(Tela.Carrinho.rota) },
                     onVoltar = { navController.popBackStack() },
                     onExplorarClick = {
                         navController.navigate(Tela.Home.rota) {

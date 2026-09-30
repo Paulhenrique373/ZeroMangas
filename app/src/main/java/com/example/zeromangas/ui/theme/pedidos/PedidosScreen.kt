@@ -1,22 +1,32 @@
 package com.example.zeromangas.ui.theme.pedidos
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Inventory
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.zeromangas.data.config.LojaConfig
 import com.example.zeromangas.data.model.Order
 import com.example.zeromangas.repository.OrderRepository
 import com.example.zeromangas.ui.components.EmptyState
@@ -29,6 +39,7 @@ import com.example.zeromangas.ui.theme.Spacing
 import com.example.zeromangas.ui.theme.TextoPrincipal
 import com.example.zeromangas.ui.theme.TextoSecundario
 import com.example.zeromangas.ui.theme.VermelhoErro
+import com.example.zeromangas.viewmodel.CartViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,6 +55,8 @@ import java.util.Locale
 @Composable
 fun PedidosScreen(
     usuarioId: String,
+    cartViewModel: CartViewModel,
+    onIrParaCarrinho: () -> Unit,
     onVoltar: () -> Unit,
     onExplorarClick: () -> Unit = {}
 ) {
@@ -55,6 +68,10 @@ fun PedidosScreen(
     var erro by remember { mutableStateOf<String?>(null) }
     var idsCancelando by remember { mutableStateOf<Set<String>>(emptySet()) }
     var erroCancelamento by remember { mutableStateOf<String?>(null) }
+    var idsRecomprando by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Avisos de "indisponível" da recompra aparecem aqui mesmo (se nada entrou no
+    // carrinho a pessoa continua nesta tela e precisa ver o motivo).
+    val avisoRecompra by cartViewModel.avisoEstoque.collectAsState()
 
     LaunchedEffect(usuarioId) {
         carregando = true
@@ -66,6 +83,14 @@ fun PedidosScreen(
             erro = "Não foi possível carregar seus pedidos."
         }
         carregando = false
+    }
+
+    fun comprarNovamente(pedido: Order) {
+        idsRecomprando = idsRecomprando + pedido.id
+        cartViewModel.comprarNovamente(pedido.itens) { adicionados ->
+            idsRecomprando = idsRecomprando - pedido.id
+            if (adicionados > 0) onIrParaCarrinho()
+        }
     }
 
     fun cancelarPedido(pedido: Order) {
@@ -127,6 +152,28 @@ fun PedidosScreen(
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
+        if (avisoRecompra != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg)
+                    .clip(RoundedCornerShape(Spacing.radiusSmall))
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(Spacing.md)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = avisoRecompra ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { cartViewModel.limparAvisoEstoque() }) { Text("OK") }
+                }
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        }
+
         when {
             carregando -> {
                 LoadingState()
@@ -157,7 +204,9 @@ fun PedidosScreen(
                         PedidoCard(
                             pedido = pedido,
                             cancelando = pedido.id in idsCancelando,
-                            onCancelar = { cancelarPedido(pedido) }
+                            onCancelar = { cancelarPedido(pedido) },
+                            recomprando = pedido.id in idsRecomprando,
+                            onComprarNovamente = { comprarNovamente(pedido) }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(Spacing.lg)) }
@@ -186,7 +235,9 @@ private fun calcularStatusPedido(status: String): String {
 fun PedidoCard(
     pedido: Order,
     cancelando: Boolean = false,
-    onCancelar: () -> Unit = {}
+    onCancelar: () -> Unit = {},
+    recomprando: Boolean = false,
+    onComprarNovamente: (() -> Unit)? = null
 ) {
     val formatador = remember { SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
     val statusAtual = remember(pedido.status) { calcularStatusPedido(pedido.status) }
@@ -195,7 +246,14 @@ fun PedidoCard(
     val itensRestantes = pedido.itens.size - 1
 
     var mostrarConfirmacao by remember { mutableStateOf(false) }
-    var detalhesExpandidos by remember { mutableStateOf(false) }
+    val retiradaNaLoja = pedido.tipoFrete.equals(LojaConfig.TIPO_FRETE_RETIRADA, ignoreCase = true)
+    val rotuloStatus = when {
+        retiradaNaLoja && statusAtual == "Enviado" -> "Pronto para retirada"
+        retiradaNaLoja && statusAtual == "Entregue" -> "Retirado"
+        else -> statusAtual
+    }
+    // Pedido em andamento já abre com o acompanhamento visível.
+    var detalhesExpandidos by remember { mutableStateOf(statusAtual != "Entregue" && statusAtual != "Cancelado") }
 
     Column(
         modifier = Modifier
@@ -214,7 +272,7 @@ fun PedidoCard(
                 style = MaterialTheme.typography.titleSmall,
                 color = RoxoNeonClaro
             )
-            StatusBadge(statusAtual)
+            StatusBadge(rotuloStatus)
         }
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -277,7 +335,7 @@ fun PedidoCard(
         if (detalhesExpandidos && statusAtual != "Cancelado") {
             Text("Acompanhamento", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
             Spacer(modifier = Modifier.height(Spacing.xs))
-            AcompanhamentoPedido(statusAtual = statusAtual)
+            AcompanhamentoPedido(statusAtual = statusAtual, retiradaNaLoja = retiradaNaLoja)
             Spacer(modifier = Modifier.height(Spacing.sm))
             HorizontalDivider(color = TextoSecundario.copy(alpha = 0.15f))
             Spacer(modifier = Modifier.height(Spacing.sm))
@@ -293,6 +351,24 @@ fun PedidoCard(
                 style = MaterialTheme.typography.titleSmall,
                 color = RoxoNeonClaro
             )
+        }
+
+        if (!podeCancelar && onComprarNovamente != null && pedido.itens.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            OutlinedButton(
+                onClick = onComprarNovamente,
+                enabled = !recomprando,
+                shape = RoundedCornerShape(Spacing.radiusSmall),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (recomprando) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Comprar novamente")
+                }
+            }
         }
 
         if (podeCancelar) {
@@ -339,14 +415,26 @@ fun PedidoCard(
     }
 }
 
+private data class EtapaTimeline(val titulo: String, val descricao: String, val icone: ImageVector)
+
 /**
- * Linha "Pedido confirmado → Preparando → Enviado → Entregue" mostrando em qual etapa
- * o pedido está agora. Usa o estado persistido já calculado no card, sem criar
- * progressão fictícia na interface.
+ * Linha do tempo vertical do pedido (confirmado -> preparando -> enviado/pronto
+ * pra retirada -> entregue/retirado). Usa só o status real gravado no pedido —
+ * não inventa datas nem previsões. Pedido de retirada na loja troca os textos
+ * das duas últimas etapas e mostra o endereço da loja.
  */
 @Composable
-private fun AcompanhamentoPedido(statusAtual: String) {
-    val etapas = listOf("Pedido confirmado", "Preparando", "Enviado", "Entregue")
+private fun AcompanhamentoPedido(statusAtual: String, retiradaNaLoja: Boolean = false) {
+    val etapas = listOf(
+        EtapaTimeline("Pedido confirmado", "Recebemos o seu pedido e o pagamento.", Icons.Default.Check),
+        EtapaTimeline("Preparando", "Estamos separando os seus mangás.", Icons.Default.Inventory),
+        if (retiradaNaLoja) {
+            EtapaTimeline("Pronto para retirada", "Retire em ${LojaConfig.ENDERECO_LINHA_1}, ${LojaConfig.BAIRRO}.", Icons.Default.Storefront)
+        } else {
+            EtapaTimeline("Enviado", "Seu pedido está a caminho do endereço de entrega.", Icons.Default.LocalShipping)
+        },
+        EtapaTimeline(if (retiradaNaLoja) "Retirado" else "Entregue", if (retiradaNaLoja) "Pedido retirado na loja. Boa leitura!" else "Pedido entregue. Boa leitura!", Icons.Default.TaskAlt)
+    )
     val indiceAtual = when (statusAtual) {
         "Preparando" -> 1
         "Enviado" -> 2
@@ -354,35 +442,47 @@ private fun AcompanhamentoPedido(statusAtual: String) {
         else -> 0
     }
 
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         etapas.forEachIndexed { indice, etapa ->
             val concluida = indice <= indiceAtual
+            val atual = indice == indiceAtual
             val cor = if (concluida) RoxoNeonClaro else TextoSecundario.copy(alpha = 0.35f)
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(cor)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = etapa,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = cor,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 1
-                )
-            }
-
-            if (indice < etapas.lastIndex) {
-                HorizontalDivider(
-                    modifier = Modifier
-                        .weight(0.6f)
-                        .padding(bottom = 14.dp),
-                    color = if (indice < indiceAtual) RoxoNeonClaro else TextoSecundario.copy(alpha = 0.25f)
-                )
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(28.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(if (atual) 28.dp else 22.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(if (concluida) cor else Color.Transparent)
+                            .border(2.dp, cor, RoundedCornerShape(50)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (concluida) {
+                            Icon(etapa.icone, contentDescription = null, tint = Color.White, modifier = Modifier.size(if (atual) 16.dp else 12.dp))
+                        }
+                    }
+                    if (indice < etapas.lastIndex) {
+                        Box(
+                            modifier = Modifier
+                                .width(2.dp)
+                                .weight(1f)
+                                .background(if (indice < indiceAtual) RoxoNeonClaro else TextoSecundario.copy(alpha = 0.25f))
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Column(modifier = Modifier.padding(bottom = if (indice < etapas.lastIndex) Spacing.md else 0.dp)) {
+                    Text(
+                        text = etapa.titulo,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (concluida) TextoPrincipal else TextoSecundario,
+                        fontWeight = if (atual) FontWeight.Bold else FontWeight.Normal
+                    )
+                    if (atual) {
+                        Text(text = etapa.descricao, style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
+                    }
+                }
             }
         }
     }

@@ -19,6 +19,12 @@ object LojaConfig {
     const val UF = "SP"
     const val CEP = "01502-001"
 
+    /** Valor gravado em "tipo_frete" do pedido quando o cliente retira na loja. */
+    const val TIPO_FRETE_RETIRADA = "Retirada na loja"
+
+    /** Nome do endereço "de retirada" guardado na conta do cliente (só pra o pedido ter endereço). */
+    const val NOME_DESTINATARIO_RETIRADA = "Retirada na loja"
+
     /** Primeira linha: "Av. da Liberdade, 776 A". */
     const val ENDERECO_LINHA_1 = "$LOGRADOURO, $NUMERO"
 

@@ -2,6 +2,7 @@ package com.example.zeromangas.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.zeromangas.data.config.LojaConfig
 import com.example.zeromangas.data.model.CartItem
 import com.example.zeromangas.data.model.Cupom
 import com.example.zeromangas.data.model.Endereco
@@ -62,6 +63,11 @@ class CartViewModel : ViewModel() {
 
     private val _frete = MutableStateFlow<Double?>(null)
     val frete: StateFlow<Double?> = _frete.asStateFlow()
+
+    // "Retirar na loja": frete grátis, sem endereço de entrega. O pedido usa um
+    // endereço técnico da loja (ver obterEnderecoDaLoja) porque "pedidos.endereco_id" é obrigatório.
+    private val _retiradaNaLoja = MutableStateFlow(false)
+    val retiradaNaLoja: StateFlow<Boolean> = _retiradaNaLoja.asStateFlow()
 
     private val _calculandoFrete = MutableStateFlow(false)
     val calculandoFrete: StateFlow<Boolean> = _calculandoFrete.asStateFlow()
@@ -172,6 +178,67 @@ class CartViewModel : ViewModel() {
         _mensagemSucesso.value = "${manga.nome} adicionado ao carrinho!"
     }
 
+    /**
+     * "Comprar novamente": devolve ao carrinho os itens de um pedido antigo.
+     * Busca o catálogo atual, então usa o PREÇO e o ESTOQUE de hoje (não os do
+     * dia da compra): item desativado/removido ou sem estoque é pulado, e a
+     * quantidade é limitada ao que ainda existe (somando o que já está no
+     * carrinho). [aoConcluir] recebe quantos itens entraram no carrinho.
+     */
+    fun comprarNovamente(itensDoPedido: List<CartItem>, aoConcluir: (adicionados: Int) -> Unit = {}) {
+        if (itensDoPedido.isEmpty()) {
+            aoConcluir(0)
+            return
+        }
+
+        viewModelScope.launch {
+            val catalogo = mangaRepository.listarMangas().getOrNull()
+            if (catalogo == null) {
+                _avisoEstoque.value = "Não foi possível consultar o estoque agora. Tente novamente."
+                aoConcluir(0)
+                return@launch
+            }
+            val mangasPorId = catalogo.associateBy { it.id }
+
+            var adicionados = 0
+            val indisponiveis = mutableListOf<String>()
+            var carrinho = _itens.value
+
+            for (itemAntigo in itensDoPedido) {
+                val mangaAtual = mangasPorId[itemAntigo.manga.id]
+                if (mangaAtual == null || mangaAtual.estoque <= 0) {
+                    indisponiveis += itemAntigo.manga.nome
+                    continue
+                }
+
+                val jaNoCarrinho = carrinho.find { it.manga.id == mangaAtual.id }?.quantidade ?: 0
+                val quantidadeFinal = (jaNoCarrinho + itemAntigo.quantidade).coerceAtMost(mangaAtual.estoque)
+                if (quantidadeFinal <= jaNoCarrinho) {
+                    indisponiveis += itemAntigo.manga.nome
+                    continue
+                }
+
+                carrinho = if (jaNoCarrinho > 0) {
+                    carrinho.map { if (it.manga.id == mangaAtual.id) CartItem(mangaAtual, quantidadeFinal) else it }
+                } else {
+                    carrinho + CartItem(mangaAtual, quantidadeFinal)
+                }
+                persistirItem(mangaAtual.id, quantidadeFinal)
+                adicionados++
+            }
+
+            _itens.value = carrinho
+
+            if (adicionados > 0) {
+                _mensagemSucesso.value = if (adicionados == 1) "1 item voltou pro carrinho!" else "$adicionados itens voltaram pro carrinho!"
+            }
+            if (indisponiveis.isNotEmpty()) {
+                _avisoEstoque.value = "Indisponível no momento: ${indisponiveis.joinToString(", ")}."
+            }
+            aoConcluir(adicionados)
+        }
+    }
+
     fun aumentarQuantidade(manga: Manga) {
         val itemAtual = _itens.value.find { it.manga.id == manga.id } ?: return
 
@@ -272,7 +339,23 @@ class CartViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Liga/desliga a retirada na loja. Ligada: frete R$ 0,00. Desligada: volta
+     * pro frete do endereço salvo escolhido (se houver) ou exige calcular de novo.
+     */
+    fun definirRetiradaNaLoja(ativa: Boolean) {
+        _retiradaNaLoja.value = ativa
+        _cepErro.value = null
+        if (ativa) {
+            _frete.value = 0.0
+        } else {
+            val salvo = _enderecosSalvos.value.firstOrNull { it.id == _enderecoSelecionadoId.value }
+            _frete.value = salvo?.let { valorFretePorUf(it.uf) }
+        }
+    }
+
     fun atualizarCep(valor: String) {
+        _retiradaNaLoja.value = false
         _enderecoSelecionadoId.value = null
         _cep.value = valor
         _frete.value = null
@@ -365,7 +448,7 @@ class CartViewModel : ViewModel() {
             val resultado = enderecoRepository.listarEnderecos(idCliente)
             resultado.onSuccess { lista ->
                 _enderecosSalvos.value = lista
-                if (_enderecoSelecionadoId.value == null && _cep.value.isBlank()) {
+                if (_enderecoSelecionadoId.value == null && _cep.value.isBlank() && !_retiradaNaLoja.value) {
                     val sugestao = lista.firstOrNull { it.padrao } ?: lista.firstOrNull()
                     sugestao?.let { selecionarEnderecoSalvo(it) }
                 }
@@ -381,6 +464,7 @@ class CartViewModel : ViewModel() {
      * fica null — isso sinaliza pro [finalizarCompra] não criar uma linha nova.
      */
     fun selecionarEnderecoSalvo(endereco: Endereco) {
+        _retiradaNaLoja.value = false
         _enderecoSelecionadoId.value = endereco.id
         _cep.value = endereco.cep
         _numero.value = endereco.numero
@@ -393,6 +477,7 @@ class CartViewModel : ViewModel() {
 
     /** Sai do modo "endereço salvo" e volta pro formulário de CEP manual, em branco. */
     fun selecionarNovoEndereco() {
+        _retiradaNaLoja.value = false
         _enderecoSelecionadoId.value = null
         _cep.value = ""
         _numero.value = ""
@@ -489,6 +574,32 @@ class CartViewModel : ViewModel() {
         _cupomAplicado.value = null
         _cupomInput.value = ""
         _cupomErro.value = null
+    }
+
+    /**
+     * Endereço técnico da loja na conta do cliente, usado pelos pedidos de
+     * retirada (o banco exige um endereço em todo pedido). Reaproveita o que já
+     * existir; só cria na primeira retirada. Fica escondido de "Meus endereços".
+     */
+    private suspend fun obterEnderecoDaLoja(clienteId: String): String? {
+        val existente = enderecoRepository.listarEnderecos(clienteId, incluirRetirada = true)
+            .getOrNull()
+            ?.firstOrNull { it.nomeDestinatario.equals(LojaConfig.NOME_DESTINATARIO_RETIRADA, ignoreCase = true) }
+        if (existente != null) return existente.id
+
+        return enderecoRepository.salvarEndereco(
+            clienteId = clienteId,
+            cep = LojaConfig.CEP,
+            logradouro = LojaConfig.LOGRADOURO,
+            numero = LojaConfig.NUMERO,
+            complemento = "",
+            bairro = LojaConfig.BAIRRO,
+            cidade = LojaConfig.CIDADE,
+            uf = LojaConfig.UF,
+            nomeDestinatario = LojaConfig.NOME_DESTINATARIO_RETIRADA,
+            informacoesAdicionais = "Retirada na loja ${LojaConfig.NOME}",
+            padrao = false
+        ).getOrNull()
     }
 
     fun resetarCheckout() {
@@ -588,9 +699,14 @@ class CartViewModel : ViewModel() {
 
             // Se o usuário escolheu um endereço já salvo, reaproveita o id dele direto —
             // só grava uma linha nova em "enderecos" quando for endereço digitado na hora.
-            var enderecoId: String? = _enderecoSelecionadoId.value
+            val retirada = _retiradaNaLoja.value
+            var enderecoId: String? = if (retirada) {
+                obterEnderecoDaLoja(clienteId)
+            } else {
+                _enderecoSelecionadoId.value
+            }
             val enderecoEncontrado = _enderecoEncontrado.value
-            if (enderecoId == null && enderecoEncontrado != null) {
+            if (!retirada && enderecoId == null && enderecoEncontrado != null) {
                 enderecoId = enderecoRepository.salvarEndereco(
                     clienteId = clienteId,
                     cep = enderecoEncontrado.cep,
@@ -609,7 +725,8 @@ class CartViewModel : ViewModel() {
             // com uma mensagem clara, em vez de deixar a RPC "criar_pedido" estourar erro.
             if (enderecoId == null) {
                 _checkoutState.value = CheckoutState.Erro(
-                    "Selecione um endereço salvo ou informe um CEP válido antes de finalizar a compra."
+                    if (retirada) "Não foi possível registrar a retirada na loja. Tente novamente."
+                    else "Selecione um endereço salvo ou informe um CEP válido antes de finalizar a compra."
                 )
                 return@launch
             }
@@ -627,8 +744,8 @@ class CartViewModel : ViewModel() {
                 valorFrete = freteAtual,
                 valorDesconto = descontoAtual,
                 valorTotal = subtotalAtual + freteAtual - descontoAtual,
-                tipoFrete = "ViaCEP",
-                cep = _cep.value,
+                tipoFrete = if (retirada) LojaConfig.TIPO_FRETE_RETIRADA else "ViaCEP",
+                cep = if (retirada) LojaConfig.CEP else _cep.value,
                 cupomCodigo = cupomAtual?.codigo ?: "",
                 data = System.currentTimeMillis(),
                 // Nota: este valor não é enviado à RPC "criar_pedido" (ela decide o
@@ -654,6 +771,7 @@ class CartViewModel : ViewModel() {
                     _complemento.value = ""
                     _enderecoEncontrado.value = null
                     _enderecoSelecionadoId.value = null
+                    _retiradaNaLoja.value = false
                     removerCupom()
                 },
                 onFailure = { erro ->

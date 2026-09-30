@@ -54,6 +54,16 @@ sealed class CredenciaisState {
     data class Erro(val mensagem: String) : CredenciaisState()
 }
 
+/** Fluxo "Esqueci minha senha": pede o e-mail, recebe um código e define a senha nova. */
+sealed class RecuperacaoSenhaState {
+    object Idle : RecuperacaoSenhaState()
+    object Enviando : RecuperacaoSenhaState()
+    object CodigoEnviado : RecuperacaoSenhaState()
+    object Redefinindo : RecuperacaoSenhaState()
+    object Sucesso : RecuperacaoSenhaState()
+    data class Erro(val mensagem: String, val aoRedefinir: Boolean = false) : RecuperacaoSenhaState()
+}
+
 class AuthViewModel : ViewModel() {
 
     private val repository = AuthRepository()
@@ -81,6 +91,9 @@ class AuthViewModel : ViewModel() {
 
     private val _credenciaisState = MutableStateFlow<CredenciaisState>(CredenciaisState.Idle)
     val credenciaisState: StateFlow<CredenciaisState> = _credenciaisState
+
+    private val _recuperacaoSenhaState = MutableStateFlow<RecuperacaoSenhaState>(RecuperacaoSenhaState.Idle)
+    val recuperacaoSenhaState: StateFlow<RecuperacaoSenhaState> = _recuperacaoSenhaState
 
     // Nunca setado diretamente pra "true" por nenhum caller — só verificarAdmin()
     // escreve aqui, e sempre a partir da resposta do banco (ver AdminRepository).
@@ -377,5 +390,58 @@ class AuthViewModel : ViewModel() {
 
     fun resetarCredenciaisState() {
         _credenciaisState.value = CredenciaisState.Idle
+    }
+
+    // ---- Esqueci minha senha ----
+
+    /** Passo 1: manda o código de recuperação pro e-mail informado. */
+    fun enviarCodigoRecuperacao(email: String) {
+        val emailLimpo = email.trim()
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(emailLimpo).matches()) {
+            _recuperacaoSenhaState.value = RecuperacaoSenhaState.Erro("Informe um e-mail válido")
+            return
+        }
+
+        _recuperacaoSenhaState.value = RecuperacaoSenhaState.Enviando
+        viewModelScope.launch {
+            repository.enviarRecuperacaoSenha(emailLimpo).fold(
+                onSuccess = { _recuperacaoSenhaState.value = RecuperacaoSenhaState.CodigoEnviado },
+                onFailure = { erro ->
+                    _recuperacaoSenhaState.value = RecuperacaoSenhaState.Erro(
+                        erro.message ?: "Não foi possível enviar o código"
+                    )
+                }
+            )
+        }
+    }
+
+    /** Passo 2: confere o código e troca a senha. */
+    fun redefinirSenhaComCodigo(email: String, codigo: String, novaSenha: String) {
+        val codigoLimpo = codigo.trim()
+        if (codigoLimpo.length < 6) {
+            _recuperacaoSenhaState.value = RecuperacaoSenhaState.Erro("Digite o código que chegou no e-mail", aoRedefinir = true)
+            return
+        }
+        if (novaSenha.length < 6) {
+            _recuperacaoSenhaState.value = RecuperacaoSenhaState.Erro("A nova senha deve ter pelo menos 6 caracteres", aoRedefinir = true)
+            return
+        }
+
+        _recuperacaoSenhaState.value = RecuperacaoSenhaState.Redefinindo
+        viewModelScope.launch {
+            repository.redefinirSenhaComCodigo(email.trim(), codigoLimpo, novaSenha).fold(
+                onSuccess = { _recuperacaoSenhaState.value = RecuperacaoSenhaState.Sucesso },
+                onFailure = { erro ->
+                    _recuperacaoSenhaState.value = RecuperacaoSenhaState.Erro(
+                        erro.message ?: "Não foi possível redefinir a senha",
+                        aoRedefinir = true
+                    )
+                }
+            )
+        }
+    }
+
+    fun resetarRecuperacaoSenha() {
+        _recuperacaoSenhaState.value = RecuperacaoSenhaState.Idle
     }
 }

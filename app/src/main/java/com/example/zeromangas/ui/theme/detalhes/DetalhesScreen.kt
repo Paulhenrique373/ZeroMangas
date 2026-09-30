@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +40,7 @@ import com.example.zeromangas.ui.components.PriceText
 import com.example.zeromangas.ui.components.PrimaryButton
 import com.example.zeromangas.ui.components.RatingStars
 import com.example.zeromangas.ui.components.SectionHeader
+import com.example.zeromangas.ui.components.formatarPrecoBr
 import com.example.zeromangas.ui.theme.AmareloDestaque
 import com.example.zeromangas.ui.theme.FundoCard
 import com.example.zeromangas.ui.theme.RoxoNeonClaro
@@ -151,13 +153,21 @@ fun DetalhesScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     BotaoCircular(icone = Icons.Default.ArrowBack, contentDescription = "Voltar", onClick = onVoltar)
-                    BotaoCircular(
-                        icone = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
-                        tint = if (isFavorito) RoxoNeonClaro else TextoPrincipal,
-                        escala = escalaFavorito,
-                        onClick = { aoFavoritar(manga) }
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        val contextoCompartilhar = androidx.compose.ui.platform.LocalContext.current
+                        BotaoCircular(
+                            icone = Icons.Default.Share,
+                            contentDescription = "Compartilhar",
+                            onClick = { compartilharManga(contextoCompartilhar, manga) }
+                        )
+                        BotaoCircular(
+                            icone = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavorito) "Remover dos favoritos" else "Adicionar aos favoritos",
+                            tint = if (isFavorito) RoxoNeonClaro else TextoPrincipal,
+                            escala = escalaFavorito,
+                            onClick = { aoFavoritar(manga) }
+                        )
+                    }
                 }
 
                 if (manga.emDestaque) {
@@ -340,6 +350,21 @@ fun DetalhesScreen(
             )
         }
     }
+}
+
+/**
+ * Abre o menu de compartilhar do Android com nome, volume e preço do mangá.
+ * Não inclui link porque o app não tem site/deep link de produto.
+ */
+private fun compartilharManga(context: android.content.Context, manga: Manga) {
+    val preco = manga.precoPromocional?.takeIf { manga.emPromocao && it < manga.preco } ?: manga.preco
+    val texto = "📚 ${manga.nome} (Vol. ${manga.volume}) por ${formatarPrecoBr(preco)} no ZeroMangás!"
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_SUBJECT, manga.nome)
+        putExtra(android.content.Intent.EXTRA_TEXT, texto)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar mangá"))
 }
 
 /**

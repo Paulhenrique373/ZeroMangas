@@ -2,6 +2,7 @@ package com.example.zeromangas.repository
 
 import com.example.zeromangas.data.model.User
 import com.example.zeromangas.data.remote.SupabaseClient
+import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.user.UserInfo
@@ -211,9 +212,10 @@ class AuthRepository {
     }
 
     /**
-     * Envia o e-mail de recuperação de senha (link de redefinição) pro
-     * endereço informado. Pronta pra usar num futuro "Esqueci minha senha"
-     * na tela de Login (ainda não existe UI pra isso no app).
+     * Envia o e-mail de recuperação de senha pro endereço informado. O e-mail
+     * precisa trazer o CÓDIGO (template "Reset Password" do Supabase com
+     * {{ .Token }}) — o app não tem deep link, então a redefinição é feita
+     * dentro dele com o código, via [redefinirSenhaComCodigo].
      */
     suspend fun enviarRecuperacaoSenha(email: String): Result<Unit> {
         return try {
@@ -221,6 +223,31 @@ class AuthRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception(traduzirErroSupabase(e)))
+        }
+    }
+
+    /**
+     * Confirma o código de recuperação recebido por e-mail e define a nova
+     * senha. Confirmar o código abre uma sessão temporária; depois de trocar a
+     * senha a sessão é encerrada, pra pessoa entrar de novo já com a senha nova.
+     */
+    suspend fun redefinirSenhaComCodigo(email: String, codigo: String, novaSenha: String): Result<Unit> {
+        return try {
+            auth.verifyEmailOtp(type = OtpType.Email.RECOVERY, email = email, token = codigo)
+            auth.updateUser {
+                password = novaSenha
+            }
+            auth.signOut()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            val mensagem = e.message.orEmpty()
+            val texto = if (
+                mensagem.contains("expired", ignoreCase = true) ||
+                mensagem.contains("invalid", ignoreCase = true) ||
+                mensagem.contains("otp", ignoreCase = true) ||
+                mensagem.contains("token", ignoreCase = true)
+            ) "Código inválido ou expirado. Peça um novo código." else traduzirErroSupabase(e)
+            Result.failure(Exception(texto))
         }
     }
 

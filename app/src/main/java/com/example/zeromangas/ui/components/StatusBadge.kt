@@ -32,7 +32,7 @@ import com.example.zeromangas.ui.theme.VermelhoErro
 fun corDoStatusPedido(status: String): Color {
     return when (status) {
         "Pedido confirmado", "Preparando" -> AmareloDestaque
-        "Enviado" -> RoxoNeonClaro
+        "Enviado", "Pronto para retirada" -> RoxoNeonClaro
         "Cancelado" -> VermelhoErro
         else -> VerdeSucesso // Entregue
     }

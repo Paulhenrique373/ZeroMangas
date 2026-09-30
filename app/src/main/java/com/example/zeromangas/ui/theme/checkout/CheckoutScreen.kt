@@ -9,7 +9,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
@@ -24,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import com.example.zeromangas.data.config.LojaConfig
 import com.example.zeromangas.data.model.Endereco
 import com.example.zeromangas.ui.components.LojaCard
 import com.example.zeromangas.ui.components.PrimaryButton
@@ -66,6 +69,7 @@ fun CheckoutScreen(
     val enderecosSalvos by cartViewModel.enderecosSalvos.collectAsState()
     val carregandoEnderecos by cartViewModel.carregandoEnderecosSalvos.collectAsState()
     val enderecoSelecionadoId by cartViewModel.enderecoSelecionadoId.collectAsState()
+    val retiradaNaLoja by cartViewModel.retiradaNaLoja.collectAsState()
     val subtotal = itens.sumOf { it.subtotal }
     val total = subtotal + (frete ?: 0.0) - desconto
 
@@ -107,47 +111,71 @@ fun CheckoutScreen(
         ) {
             when (etapa) {
                 EtapaCheckout.ENTREGA -> item {
-                    CabecalhoEtapa("1. Entrega", "Escolha onde deseja receber seu pedido")
-                    LojaCard(legenda = "Seu pedido sai daqui")
+                    CabecalhoEtapa("1. Entrega", "Escolha como deseja receber seu pedido")
+                    OpcaoEntrega(
+                        titulo = "Entregar no meu endereço",
+                        subtitulo = "Frete calculado pelo CEP",
+                        icone = Icons.Default.LocalShipping,
+                        selecionado = !retiradaNaLoja,
+                        onClick = { cartViewModel.definirRetiradaNaLoja(false) }
+                    )
+                    Spacer(Modifier.height(Spacing.sm))
+                    OpcaoEntrega(
+                        titulo = "Retirar na loja",
+                        subtitulo = "Frete grátis · ${LojaConfig.ENDERECO_LINHA_1}, ${LojaConfig.BAIRRO}",
+                        icone = Icons.Default.Storefront,
+                        selecionado = retiradaNaLoja,
+                        onClick = { cartViewModel.definirRetiradaNaLoja(true) }
+                    )
                     Spacer(Modifier.height(Spacing.md))
-                    if (carregandoEnderecos && enderecosSalvos.isEmpty()) {
-                        Box(Modifier.fillMaxWidth().padding(Spacing.xl), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        }
-                    } else if (!escolhendoEndereco && enderecoSelecionadoId != null) {
-                        val endereco = enderecosSalvos.firstOrNull { it.id == enderecoSelecionadoId }
-                        if (endereco != null) CartaoEndereco(endereco, true, {})
-                        TextButton(onClick = { escolhendoEndereco = true }) { Text("Alterar endereço") }
-                    } else {
-                        enderecosSalvos.forEach { endereco ->
-                            CartaoEndereco(endereco, enderecoSelecionadoId == endereco.id) {
-                                cartViewModel.selecionarEnderecoSalvo(endereco)
-                                escolhendoEndereco = false
-                            }
-                            Spacer(Modifier.height(Spacing.sm))
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                cartViewModel.selecionarNovoEndereco()
-                                escolhendoEndereco = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Add, null, modifier = Modifier.size(Spacing.iconMedium))
-                            Spacer(Modifier.width(Spacing.xs))
-                            Text("Adicionar endereço")
-                        }
-                    }
-
-                    if (enderecoSelecionadoId == null) {
+                    if (retiradaNaLoja) {
+                        LojaCard(legenda = "Retire seu pedido aqui")
                         Spacer(Modifier.height(Spacing.sm))
-                        SecaoFrete(cep, cepErro, frete, calculandoFrete, cidadeUf, cartViewModel::atualizarCep, cartViewModel::calcularFrete)
-                        if (frete != null) {
+                        Text(
+                            "Avisaremos quando o pedido estiver pronto para retirada.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextoSecundario
+                        )
+                    } else {
+                        if (carregandoEnderecos && enderecosSalvos.isEmpty()) {
+                            Box(Modifier.fillMaxWidth().padding(Spacing.xl), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            }
+                        } else if (!escolhendoEndereco && enderecoSelecionadoId != null) {
+                            val endereco = enderecosSalvos.firstOrNull { it.id == enderecoSelecionadoId }
+                            if (endereco != null) CartaoEndereco(endereco, true, {})
+                            TextButton(onClick = { escolhendoEndereco = true }) { Text("Alterar endereço") }
+                        } else {
+                            enderecosSalvos.forEach { endereco ->
+                                CartaoEndereco(endereco, enderecoSelecionadoId == endereco.id) {
+                                    cartViewModel.selecionarEnderecoSalvo(endereco)
+                                    escolhendoEndereco = false
+                                }
+                                Spacer(Modifier.height(Spacing.sm))
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    cartViewModel.selecionarNovoEndereco()
+                                    escolhendoEndereco = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Add, null, modifier = Modifier.size(Spacing.iconMedium))
+                                Spacer(Modifier.width(Spacing.xs))
+                                Text("Adicionar endereço")
+                            }
+                        }
+
+                        if (enderecoSelecionadoId == null) {
                             Spacer(Modifier.height(Spacing.sm))
-                            OutlinedTextField(numero, cartViewModel::atualizarNumero, Modifier.fillMaxWidth(), label = { Text("Número") }, singleLine = true, isError = numero.isBlank())
-                            if (numero.isBlank()) Text("Informe o número para continuar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.height(Spacing.sm))
-                            OutlinedTextField(complemento, cartViewModel::atualizarComplemento, Modifier.fillMaxWidth(), label = { Text("Complemento (opcional)") }, singleLine = true)
+                            SecaoFrete(cep, cepErro, frete, calculandoFrete, cidadeUf, cartViewModel::atualizarCep, cartViewModel::calcularFrete)
+                            if (frete != null) {
+                                Spacer(Modifier.height(Spacing.sm))
+                                OutlinedTextField(numero, cartViewModel::atualizarNumero, Modifier.fillMaxWidth(), label = { Text("Número") }, singleLine = true, isError = numero.isBlank())
+                                if (numero.isBlank()) Text("Informe o número para continuar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.height(Spacing.sm))
+                                OutlinedTextField(complemento, cartViewModel::atualizarComplemento, Modifier.fillMaxWidth(), label = { Text("Complemento (opcional)") }, singleLine = true)
+                            }
                         }
                     }
                 }
@@ -168,7 +196,8 @@ fun CheckoutScreen(
                             Column(Modifier.padding(Spacing.md)) {
                                 Text("Entrega", style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
                                 Text(
-                                    endereco?.let { "${it.logradouro}, ${it.numero} · ${it.cidade}/${it.uf}" } ?: "Endereço informado pelo CEP",
+                                    if (retiradaNaLoja) "Retirar na loja · ${LojaConfig.ENDERECO_LINHA_1}, ${LojaConfig.BAIRRO}"
+                                    else endereco?.let { "${it.logradouro}, ${it.numero} · ${it.cidade}/${it.uf}" } ?: "Endereço informado pelo CEP",
                                     style = MaterialTheme.typography.bodySmall, color = TextoSecundario
                                 )
                                 TextButton(onClick = { etapa = EtapaCheckout.ENTREGA }) { Text("Alterar") }
@@ -198,7 +227,7 @@ fun CheckoutScreen(
                                 }
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = Spacing.sm))
                                 LinhaResumo("Subtotal", subtotal)
-                                LinhaResumo("Frete", frete)
+                                if (retiradaNaLoja) LinhaResumo("Frete", null, "Grátis (retirada)", true) else LinhaResumo("Frete", frete)
                                 LinhaResumo("Desconto", null, if (desconto > 0) "− ${formatarPrecoBr(desconto)}" else "—", desconto > 0)
                                 Spacer(Modifier.height(Spacing.sm))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -220,7 +249,7 @@ fun CheckoutScreen(
                 when (etapa) {
                     EtapaCheckout.ENTREGA -> PrimaryButton(
                         "Continuar para pagamento", { etapa = EtapaCheckout.PAGAMENTO }, Modifier.fillMaxWidth(),
-                        enabled = frete != null && numero.isNotBlank()
+                        enabled = retiradaNaLoja || (frete != null && numero.isNotBlank())
                     )
                     EtapaCheckout.PAGAMENTO -> PrimaryButton(
                         "Revisar pedido", { etapa = EtapaCheckout.RESUMO }, Modifier.fillMaxWidth(),
@@ -233,6 +262,25 @@ fun CheckoutScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun OpcaoEntrega(titulo: String, subtitulo: String, icone: ImageVector, selecionado: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = if (selecionado) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icone, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(Spacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(titulo, style = MaterialTheme.typography.titleSmall, color = TextoPrincipal)
+                Text(subtitulo, style = MaterialTheme.typography.bodySmall, color = TextoSecundario)
+            }
+            if (selecionado) Icon(Icons.Default.Check, "Selecionado", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

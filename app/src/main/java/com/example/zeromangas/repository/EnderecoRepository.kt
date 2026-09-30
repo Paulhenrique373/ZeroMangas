@@ -1,5 +1,6 @@
 package com.example.zeromangas.repository
 
+import com.example.zeromangas.data.config.LojaConfig
 import com.example.zeromangas.data.model.Endereco
 import com.example.zeromangas.data.remote.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
@@ -148,9 +149,11 @@ class EnderecoRepository {
 
     /**
      * Lista os endereços do cliente (padrão primeiro, depois mais recentes),
-     * via a função "listar_enderecos".
+     * via a função "listar_enderecos". O endereço técnico de "Retirada na loja"
+     * (criado só pra o pedido de retirada ter um endereço) fica escondido da lista,
+     * a menos que [incluirRetirada] seja true.
      */
-    suspend fun listarEnderecos(clienteId: String): Result<List<Endereco>> {
+    suspend fun listarEnderecos(clienteId: String, incluirRetirada: Boolean = false): Result<List<Endereco>> {
         return try {
             val paramsJson = jsonRpc.encodeToJsonElement(
                 ListarEnderecosParamsDto.serializer(),
@@ -161,6 +164,7 @@ class EnderecoRepository {
                 .rpc("listar_enderecos", paramsJson)
                 .decodeList<EnderecoDto>()
                 .map { it.paraModel() }
+                .filter { incluirRetirada || !it.nomeDestinatario.equals(LojaConfig.NOME_DESTINATARIO_RETIRADA, ignoreCase = true) }
 
             Result.success(enderecos)
         } catch (e: Exception) {

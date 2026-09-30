@@ -47,6 +47,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
     var senhaVisivel by remember { mutableStateOf(false) }
+    var mostrarRecuperacao by remember { mutableStateOf(false) }
     val authState by authViewModel.authState.collectAsState()
     val foco = LocalFocusManager.current
     val entrar = {
@@ -101,11 +102,17 @@ fun LoginScreen(
                         imeAction = ImeAction.Done,
                         onDone = entrar
                     )
+                    TextButton(
+                        onClick = { mostrarRecuperacao = true },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Esqueci minha senha", color = RoxoNeon, style = MaterialTheme.typography.labelLarge)
+                    }
                     if (authState is AuthState.Erro) {
                         Spacer(Modifier.height(Spacing.sm))
                         AuthError((authState as AuthState.Erro).mensagem)
                     }
-                    Spacer(Modifier.height(Spacing.lg))
+                    Spacer(Modifier.height(Spacing.md))
                     PrimaryButton("Entrar", entrar, Modifier.fillMaxWidth(), enabled = authState !is AuthState.Loading, loading = authState is AuthState.Loading)
                 }
             }
@@ -122,6 +129,14 @@ fun LoginScreen(
                 Text("Continuar sem conta", color = TextoSecundario)
             }
         }
+    }
+
+    if (mostrarRecuperacao) {
+        RecuperarSenhaDialog(
+            authViewModel = authViewModel,
+            emailInicial = email,
+            onFechar = { mostrarRecuperacao = false }
+        )
     }
 }
 
